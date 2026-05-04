@@ -14,5 +14,4 @@ export const EVENTS = {
   MESSAGE_UPDATE: "messageUpdate",
   MESSAGE_DELETE: "messageDelete",
   GUILD_MEMBER_ADD: "guildMemberAdd",
-  // Tambahkan event lain sesuai kebutuhan Discord.js v13
 };
