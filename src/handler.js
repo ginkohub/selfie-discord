@@ -38,10 +38,26 @@ export class Handler {
       try {
         if (eventType === EVENTS.MESSAGE_CREATE) {
           const message = eventData;
-          if (message.author.id !== client.user.id) continue;
-
           const content = message.content;
           const prefix = settings.prefix;
+
+          if (plugin.roles?.length && message.author.id !== client.user.id) {
+            const user = this.userManager.getUser(message.author.id);
+
+            const pluginRoles = plugin.roles;
+            const userRoles = user?.roles;
+
+            if (!userRoles?.length) {
+              continue;
+            }
+
+            const pluginMin = Math.min(...pluginRoles);
+            const userMax = Math.max(...userRoles);
+
+            if (userMax < pluginMin) {
+              continue;
+            }
+          }
 
           if (plugin.cmd) {
             let matched = false;
