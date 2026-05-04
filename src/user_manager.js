@@ -31,7 +31,7 @@ export class UserManager {
         id,
         username: null,
         displayName: null,
-        roles: [Role.USER],
+        roles: [Role.GUEST],
         level: 1,
         xp: 0,
         addedAt: new Date().toISOString(),
