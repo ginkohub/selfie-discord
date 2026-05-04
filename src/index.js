@@ -21,7 +21,6 @@ const start = async () => {
 
   const client = createClient();
 
-  // Dynamically bind all events defined in const.js to the dispatcher
   for (const [_key, eventName] of Object.entries(EVENTS)) {
     client.on(eventName, (...args) => {
       dispatcher(eventName, args[0], client);
