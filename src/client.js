@@ -9,10 +9,36 @@
  */
 
 import { Client } from "discord.js-selfbot-v13";
+import { startCaptchaServer, waitForCaptcha } from "./captcha_server.js";
+import pen from "./pen.js";
+
+startCaptchaServer(3000);
 
 export const createClient = () => {
   const client = new Client({
     checkUpdate: false,
+    captchaSolver: async (captchaData, userAgent) => {
+      pen.Warn("--- CAPTCHA REQUIRED ---");
+      pen.Debug("Captcha Payload:", JSON.stringify(captchaData));
+
+      const sitekey =
+        captchaData.sitekey ||
+        captchaData.captcha_sitekey ||
+        "b2b02ab5-7dae-4d6f-830e-7b55634c888b";
+
+      pen.Info(`Sitekey: ${sitekey}`);
+      pen.Info(`User-Agent: ${userAgent}`);
+      pen.Info("Built-in solver: http://local.discord.com:3000");
+      pen.Info("------------------------");
+
+      const token = await waitForCaptcha({
+        ...captchaData,
+        userAgent,
+        sitekey,
+      });
+      pen.Info(`Token received (${token.length} chars). Retrying request...`);
+      return token;
+    },
   });
 
   return client;
