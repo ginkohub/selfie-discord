@@ -28,6 +28,7 @@ const t = translate({
     invalid_role: "Invalid role. Available: {val}",
     added_role: "Added role {role} to {count} user(s).",
     removed_role: "Removed role {role} from {count} user(s).",
+    bio: "Bio",
   },
   id: {
     header: "--- Informasi User ---",
@@ -45,6 +46,7 @@ const t = translate({
     invalid_role: "Peran tidak valid. Tersedia: {val}",
     added_role: "Menambahkan peran {role} ke {count} user.",
     removed_role: "Menghapus peran {role} dari {count} user.",
+    bio: "Bio",
   },
 });
 
@@ -84,11 +86,17 @@ export default [
           .join(", ");
         const added = new Date(user.addedAt).toLocaleString();
 
+        const displayBio =
+          id === c.client.user.id
+            ? c.client.user.bio || "N/A"
+            : discordUser?.bio || "N/A";
+
         texts.push(
           `${t("display_name", {}, c)}: ${user.displayName || "N/A"}`,
           `${t("username", {}, c)}: ${user.username || "N/A"}`,
           `${t("id", {}, c)}: ${id}`,
           `${t("roles", {}, c)}: ${roles}`,
+          `${t("bio", {}, c)}: ${displayBio}`,
           `${t("level", {}, c)}: ${user.level}`,
           `${t("xp", {}, c)}: ${user.xp}`,
           `${t("status", {}, c)}: ${user.banned ? t("banned", { val: new Date(user.bannedAt).toLocaleString() }, c) : t("active", {}, c)}`,
@@ -173,6 +181,57 @@ export default [
       await c.reply(
         t("removed_role", { role: roleName, count: mentions.size }, c),
       );
+    },
+  },
+  {
+    cmd: ["user+"],
+    cat: "admin",
+    tags: ["user"],
+    desc: "Add/verify user(s) to database",
+    roles: [Role.ADMIN],
+    exec: async (c) => {
+      const mentions = c.event.mentions.users;
+      const targets =
+        mentions.size > 0
+          ? mentions.map((u) => u.id)
+          : c.args.trim()
+            ? [c.args.trim()]
+            : [];
+
+      if (targets.length === 0)
+        return await c.reply("Usage: .user+ <id> or @mention");
+
+      for (const id of targets) {
+        c.handler().userManager.getUser(id);
+      }
+
+      await c.reply(`Added/verified ${targets.length} user(s).`);
+    },
+  },
+  {
+    cmd: ["user-"],
+    cat: "admin",
+    tags: ["user"],
+    desc: "Remove user(s) from database",
+    roles: [Role.ADMIN],
+    exec: async (c) => {
+      const mentions = c.event.mentions.users;
+      const targets =
+        mentions.size > 0
+          ? mentions.map((u) => u.id)
+          : c.args.trim()
+            ? [c.args.trim()]
+            : [];
+
+      if (targets.length === 0)
+        return await c.reply("Usage: .user- <id> or @mention");
+
+      for (const id of targets) {
+        delete c.handler().userManager.data[id];
+      }
+      c.handler().userManager.save();
+
+      await c.reply(`Removed ${targets.length} user(s) from database.`);
     },
   },
 ];
