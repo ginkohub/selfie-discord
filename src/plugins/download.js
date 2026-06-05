@@ -74,15 +74,19 @@ export default {
             .filter(Boolean)
             .join("\n");
 
-          await c.reply(lines);
-
-          if (info.duration && info.duration > 600) continue;
+          if (info.duration && info.duration > 600) {
+            await c.reply(lines);
+            continue;
+          }
 
           const buffer = await yt.getBuffer(url, ["-f", "best[ext=mp4]/best"]);
           if (buffer?.length) {
-            await c.event.channel.send({
+            await c.reply({
+              content: lines,
               files: [{ attachment: buffer, name: `${info.title}.mp4` }],
             });
+          } else {
+            await c.reply(lines);
           }
           continue;
         } catch {
@@ -97,12 +101,24 @@ export default {
           `**${result.platform}**`,
           result.title && `Title: ${result.title}`,
           result.metadata?.author && `Author: ${result.metadata.author}`,
-          result.media?.url && `URL: ${result.media.url}`,
         ]
           .filter(Boolean)
           .join("\n");
 
-        await c.reply(lines);
+        const mediaUrl = result.media?.url;
+        if (mediaUrl) {
+          const res = await fetch(mediaUrl);
+          if (res.ok) {
+            const buf = Buffer.from(await res.arrayBuffer());
+            const ext = result.media.type === "image" ? "jpg" : "mp4";
+            const name = `${result.title || "media"}.${ext}`;
+            await c.reply({ content: lines, files: [{ attachment: buf, name }] });
+          } else {
+            await c.reply(lines);
+          }
+        } else {
+          await c.reply(lines);
+        }
       } catch {
         await c.react("❌");
       }
