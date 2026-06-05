@@ -23,10 +23,15 @@ export default {
     try {
       const out = execSync(cmd, { encoding: "utf-8", timeout: 30000 });
       const reply = `$ ${cmd}\n${out}`.trim();
-      await c.reply(reply || "(empty output)");
-    } catch (e) {
-      const msg = `$ ${cmd}\n${e.stdout || ""}\n${e.stderr || e.message}`.trim();
-      await c.reply(msg || "(command failed)");
+      if (reply.length > 2000) {
+        await c.event.channel.send({
+          files: [{ attachment: Buffer.from(reply), name: "output.txt" }],
+        });
+      } else {
+        await c.reply(reply || "(empty output)");
+      }
+    } catch {
+      await c.react("❌");
     }
   },
 };
