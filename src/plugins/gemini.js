@@ -9,10 +9,10 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
+import pen from "../pen.js";
 import { Role } from "../roles.js";
 import { read, write } from "../store.js";
 import { translate } from "../translate.js";
-import pen from "../pen.js";
 
 const MODELS = [
   "gemini-2.5-flash",
@@ -24,7 +24,8 @@ const MODELS = [
 const t = translate({
   en: {
     usage: "Usage: `{prefix}gm <message>` or reply to a message",
-    no_key: "Gemini API key not set. Set it via `{prefix}gm key <key>` or GEMINI_API_KEY env.",
+    no_key:
+      "Gemini API key not set. Set it via `{prefix}gm key <key>` or GEMINI_API_KEY env.",
     model_set: "_Model set to {model}_",
     key_set: "_API key updated_",
     key_usage: "Usage: `{prefix}gm key <api_key>`",
@@ -32,7 +33,8 @@ const t = translate({
   },
   id: {
     usage: "Gunakan: `{prefix}gm <pesan>` atau balas pesan",
-    no_key: "API key Gemini belum diatur. Atur via `{prefix}gm key <key>` atau env GEMINI_API_KEY.",
+    no_key:
+      "API key Gemini belum diatur. Atur via `{prefix}gm key <key>` atau env GEMINI_API_KEY.",
     model_set: "_Model diubah ke {model}_",
     key_set: "_API key diperbarui_",
     key_usage: "Penggunaan: `{prefix}gm key <api_key>`",
@@ -78,7 +80,7 @@ function getGenAI() {
 const chats = new Map();
 
 export default {
-  cmd: ["gm", "gemini"],
+  cmd: ["gm", "gmr", "gemini"],
   cat: "ai",
   desc: "Chat with Gemini AI",
   roles: [Role.USER],
@@ -99,7 +101,10 @@ export default {
 
     if (sub === "model") {
       const model = rest.join(" ").trim();
-      if (!model) return await c.reply(`${t("models", {}, c)}\n${MODELS.map((m) => `- ${m}`).join("\n")}`);
+      if (!model)
+        return await c.reply(
+          `${t("models", {}, c)}\n${MODELS.map((m) => `- ${m}`).join("\n")}`,
+        );
       if (!MODELS.includes(model)) {
         return await c.reply(`Invalid model. Available: ${MODELS.join(", ")}`);
       }
@@ -120,7 +125,9 @@ export default {
     }
 
     if (sub === "models") {
-      return await c.reply(`${t("models", {}, c)}\n${MODELS.map((m) => `- ${m}`).join("\n")}`);
+      return await c.reply(
+        `${t("models", {}, c)}\n${MODELS.map((m) => `- ${m}`).join("\n")}`,
+      );
     }
 
     const client = getGenAI();
@@ -157,12 +164,18 @@ export default {
 
       const resp = await chat.sendMessage({ message: query });
       const text = resp?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      if (text) await c.reply(text);
+      if (text) {
+        if (c.cmd === "gmr") {
+          await c.event.edit(text);
+        } else {
+          await c.reply(text);
+        }
+      }
     } catch (e) {
       pen.Error("gemini:", e.message);
       if (e.status === 429) {
         chats.delete(channelId);
-        await c.reply("Rate limited. Try again later or switch model.");
+        await c.react("⚠️");
       } else if (e.status === 401 || e.status === 403) {
         genAI = null;
         chats.clear();
