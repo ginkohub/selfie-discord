@@ -49,53 +49,63 @@ export default {
   desc: "Download media from TikTok, Instagram, YouTube, etc.",
   roles: [Role.USER],
   exec: async (c) => {
-    const url = c.args?.trim();
-    if (!url || !/^https?:\/\//.test(url)) return await c.react("❌");
+    let urls = (c.args || "").match(/https?:\/\/[^\s]+/g) || [];
+    if (urls.length === 0) {
+      const ref = c.event.reference;
+      if (ref?.messageId) {
+        const replied = await c.event.channel.messages.fetch(ref.messageId);
+        urls = replied.content?.match(/https?:\/\/[^\s]+/g) || [];
+      }
+    }
+    if (urls.length === 0) return await c.react("❌");
 
-    if (YTDLP_SITES.test(url)) {
+    for (const url of urls) {
+      if (YTDLP_SITES.test(url)) {
+        try {
+          const yt = await getYT();
+          const info = await yt.getVideoInfo(url);
+
+          const lines = [
+            `**${info.title}**`,
+            info.uploader && `Uploader: ${info.uploader}`,
+            info.duration_string && `Duration: ${info.duration_string}`,
+            info.view_count && `Views: ${info.view_count.toLocaleString()}`,
+          ]
+            .filter(Boolean)
+            .join("\n");
+
+          await c.reply(lines);
+
+          if (info.duration && info.duration > 600) continue;
+
+          const buffer = await yt.getBuffer(url, ["-f", "best[ext=mp4]/best"]);
+          if (buffer?.length) {
+            await c.event.channel.send({
+              files: [{ attachment: buffer, name: `${info.title}.mp4` }],
+            });
+          }
+          continue;
+        } catch {
+          await c.react("❌");
+          continue;
+        }
+      }
+
       try {
-        const yt = await getYT();
-        const info = await yt.getVideoInfo(url);
-
+        const result = await download(url);
         const lines = [
-          `**${info.title}**`,
-          info.uploader && `Uploader: ${info.uploader}`,
-          info.duration_string && `Duration: ${info.duration_string}`,
-          info.view_count && `Views: ${info.view_count.toLocaleString()}`,
+          `**${result.platform}**`,
+          result.title && `Title: ${result.title}`,
+          result.metadata?.author && `Author: ${result.metadata.author}`,
+          result.media?.url && `URL: ${result.media.url}`,
         ]
           .filter(Boolean)
           .join("\n");
 
         await c.reply(lines);
-
-        if (info.duration && info.duration > 600) return;
-
-        const buffer = await yt.getBuffer(url, ["-f", "best[ext=mp4]/best"]);
-        if (buffer?.length) {
-          await c.event.channel.send({
-            files: [{ attachment: buffer, name: `${info.title}.mp4` }],
-          });
-        }
       } catch {
         await c.react("❌");
       }
-      return;
-    }
-
-    try {
-      const result = await download(url);
-      const lines = [
-        `**${result.platform}**`,
-        result.title && `Title: ${result.title}`,
-        result.metadata?.author && `Author: ${result.metadata.author}`,
-        result.media?.url && `URL: ${result.media.url}`,
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      await c.reply(lines);
-    } catch {
-      await c.react("❌");
     }
   },
 };
