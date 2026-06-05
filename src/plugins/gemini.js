@@ -8,11 +8,13 @@
  * This code is part of Ginko project (https://github.com)
  */
 
+import { execSync } from "node:child_process";
 import { GoogleGenAI } from "@google/genai";
 import pen from "../pen.js";
 import { Role } from "../roles.js";
 import { read, write } from "../store.js";
 import { translate } from "../translate.js";
+import { searchWiki } from "../wiki.js";
 
 const MODELS = {
   "gemini-3.5-flash": "",
@@ -28,12 +30,138 @@ const MODELS = {
 
 const MODEL_NAMES = Object.keys(MODELS);
 
-const modelListStr = () => MODEL_NAMES.map((m) => `- ${m}${MODELS[m] ? ` (${MODELS[m]})` : ""}`).join("\n");
+const modelListStr = () =>
+  MODEL_NAMES.map((m) => `- ${m}${MODELS[m] ? ` (${MODELS[m]})` : ""}`).join(
+    "\n",
+  );
+
+const FUNCTION_DECLARATIONS = [
+  {
+    name: "execute_shell",
+    description:
+      "Execute a shell command on the server. Requires admin privileges.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        command: {
+          type: "STRING",
+          description: "The shell command to execute",
+        },
+      },
+      required: ["command"],
+    },
+  },
+  {
+    name: "get_weather",
+    description: "Get current weather for a city",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        city: { type: "STRING", description: "City name" },
+      },
+      required: ["city"],
+    },
+  },
+  {
+    name: "react",
+    description: "React to the user's message with an emoji",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        emoji: { type: "STRING", description: "The emoji to react with" },
+      },
+      required: ["emoji"],
+    },
+  },
+  {
+    name: "search_wikipedia",
+    description: "Search Wikipedia for a topic and get a summary",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: { type: "STRING", description: "The search query" },
+      },
+      required: ["query"],
+    },
+  },
+];
+
+async function handleFunctionCall(fc, c) {
+  const { name, args } = fc;
+  switch (name) {
+    case "execute_shell": {
+      const user = c.handler().userManager.getUser(c.senderJid);
+      if (!user?.isAtLeast(Role.ADMIN)) {
+        return "Permission denied: admin role required";
+      }
+      try {
+        const out = execSync(args.command, {
+          encoding: "utf-8",
+          timeout: 15000,
+        });
+        return out.slice(0, 5000) || "(empty output)";
+      } catch (e) {
+        return e.stderr || e.message;
+      }
+    }
+    case "get_weather": {
+      try {
+        const geo = await (
+          await fetch(
+            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(args.city)}&count=1&language=en&format=json`,
+          )
+        ).json();
+        if (!geo.results?.length) return `City "${args.city}" not found`;
+        const { latitude, longitude, name, country } = geo.results[0];
+        const w = await (
+          await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`,
+          )
+        ).json();
+        const codes = {
+          0: "Clear",
+          1: "Mainly clear",
+          2: "Partly cloudy",
+          3: "Overcast",
+          45: "Fog",
+          51: "Drizzle",
+          61: "Rain",
+          71: "Snow",
+          95: "Thunderstorm",
+        };
+        const cond = codes[w.current.weather_code] || "Unknown";
+        return `${name}, ${country}: ${w.current.temperature_2m}°C, ${cond}, ${w.current.relative_humidity_2m}% humidity, wind ${w.current.wind_speed_10m} km/h`;
+      } catch (e) {
+        return `Weather fetch failed: ${e.message}`;
+      }
+    }
+    case "react": {
+      try {
+        await c.event.react(args.emoji);
+        return `Reacted with ${args.emoji}`;
+      } catch {
+        return "Failed to react";
+      }
+    }
+    case "search_wikipedia": {
+      try {
+        const result = await searchWiki(args.query);
+        if (!result) return `No results found for "${args.query}"`;
+        return `${result.title}: ${(result.text || "No extract available").slice(0, 2000)}\n${result.url}`;
+      } catch (e) {
+        return `Wikipedia search failed: ${e.message}`;
+      }
+    }
+    default:
+      return `Unknown function: ${name}`;
+  }
+}
 
 const t = translate({
   en: {
     usage: "Usage: `{prefix}gm <message>` or reply to a message",
-    no_key: "Gemini API key not set. Set it via `{prefix}gm key <key>` or GEMINI_API_KEY env.",
+    no_key:
+      "Gemini API key not set. Set it via `{prefix}gm key <key>` or GEMINI_API_KEY env.",
     model_set: "_Model set to {model}_",
     key_set: "_API key updated_",
     key_usage: "Usage: `{prefix}gm key <api_key>`",
@@ -41,7 +169,8 @@ const t = translate({
   },
   id: {
     usage: "Gunakan: `{prefix}gm <pesan>` atau balas pesan",
-    no_key: "API key Gemini belum diatur. Atur via `{prefix}gm key <key>` atau env GEMINI_API_KEY.",
+    no_key:
+      "API key Gemini belum diatur. Atur via `{prefix}gm key <key>` atau env GEMINI_API_KEY.",
     model_set: "_Model diubah ke {model}_",
     key_set: "_API key diperbarui_",
     key_usage: "Penggunaan: `{prefix}gm key <api_key>`",
@@ -130,9 +259,7 @@ export default {
     }
 
     if (sub === "models") {
-      return await c.reply(
-        `${t("models", {}, c)}\n${modelListStr()}`,
-      );
+      return await c.reply(`${t("models", {}, c)}\n${modelListStr()}`);
     }
 
     const client = getGenAI();
@@ -144,6 +271,7 @@ export default {
       const model = getModelName();
       const si = getSystemInstruction();
       const config = si ? { systemInstruction: { text: si } } : {};
+      config.tools = [{ functionDeclarations: FUNCTION_DECLARATIONS }];
 
       let chat = chats.get(channelId);
       if (!chat) {
@@ -201,8 +329,32 @@ export default {
 
       if (parts.length === 0) return await c.react("❓");
 
-      const resp = await chat.sendMessage({ message: parts });
-      const text = resp?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      parts.unshift({ text: `[Current time: ${new Date().toLocaleString()}]` });
+
+      let resp = await chat.sendMessage({ message: parts });
+      let text = null;
+      let iterations = 0;
+
+      while (iterations < 10) {
+        const fc = resp?.candidates?.[0]?.content?.parts?.[0]?.functionCall;
+        if (!fc) {
+          text = resp?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          break;
+        }
+        await c.react("⚡");
+        const result = await handleFunctionCall(fc, c);
+        resp = await chat.sendMessage({
+          message: [
+            {
+              functionResponse: {
+                name: fc.name,
+                response: { content: result },
+              },
+            },
+          ],
+        });
+        iterations++;
+      }
       if (text) {
         if (c.cmd === "gmr") {
           await c.event.edit(text);
