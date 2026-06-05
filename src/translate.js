@@ -8,11 +8,9 @@
  * This code is part of Ginko project (https://github.com)
  */
 
-import settings from "./settings.js";
-
 export const translate = (translations) => {
   return (key, variables = {}, context = {}) => {
-    const lang = context.lang || settings.lang || "en";
+    const lang = context.lang || "en";
     let text = translations[lang]?.[key] || translations.en?.[key] || key;
 
     for (const [vKey, vVal] of Object.entries(variables)) {
@@ -22,3 +20,74 @@ export const translate = (translations) => {
     return text;
   };
 };
+
+async function translateGoogle(text, target, source) {
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${source}&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const translated = data[0]?.[0]?.[0];
+  if (!translated) throw new Error("Empty response from Google Translate");
+  return translated;
+}
+
+const LIBRE_INSTANCES = [
+  "https://translate.fedilab.app",
+  "https://translate.mstdn.social",
+  "https://translate.rinderha.cc",
+];
+
+async function translateLibre(text, target, source, urls, apiKey) {
+  const headers = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const body = JSON.stringify({ q: text, source, target, format: "text" });
+
+  const list = Array.isArray(urls) ? urls : [urls];
+  const errors = [];
+
+  for (const url of list) {
+    try {
+      const res = await fetch(`${url}/translate`, {
+        method: "POST",
+        headers,
+        body,
+      });
+      if (!res.ok) {
+        errors.push(`${url}: ${res.status}`);
+        continue;
+      }
+      const data = await res.json();
+      return data.translatedText;
+    } catch (e) {
+      errors.push(`${url}: ${e.message}`);
+    }
+  }
+
+  throw new Error(
+    `LibreTranslate failed on all instances:\n${errors.join("\n")}`,
+  );
+}
+
+/**
+ * Translate text with configurable engine.
+ * @param {string} text
+ * @param {string} target - Target language code (ISO 639-1)
+ * @param {Object} [options]
+ * @param {string} [options.engine="google"] - "google" or "libre"
+ * @param {string} [options.source="auto"] - Source language code
+ * @param {string|string[]} [options.libreUrl] - LibreTranslate instance URL(s)
+ * @param {string} [options.apiKey] - API key for LibreTranslate
+ * @returns {Promise<string>}
+ */
+export async function translateText(text, target, options = {}) {
+  const {
+    engine = "google",
+    source = "auto",
+    libreUrl = LIBRE_INSTANCES,
+    apiKey,
+  } = options;
+
+  if (engine === "libre") {
+    return translateLibre(text, target, source, libreUrl, apiKey);
+  }
+  return translateGoogle(text, target, source);
+}

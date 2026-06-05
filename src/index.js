@@ -8,35 +8,17 @@
  * This code is part of Ginko project (https://github.com)
  */
 
-import { createClient } from "./client.js";
-import { EVENTS } from "./const.js";
-import { dispatcher } from "./handler.js";
-import pen from "./pen.js";
-import { initWatcher, loadPlugins } from "./plugin.js";
-import settings from "./settings.js";
-
-const start = async () => {
-  await loadPlugins();
-  initWatcher();
-
-  const client = createClient();
-
-  for (const [_key, eventName] of Object.entries(EVENTS)) {
-    client.on(eventName, (...args) => {
-      dispatcher(eventName, args[0], client);
-    });
-  }
-
-  client.on(EVENTS.READY, () => {
-    pen.Info(`${client.user.tag} is active`);
-  });
-
-  if (!settings.token) {
-    pen.Error("DISCORD_TOKEN missing in .env");
-    process.exit(1);
-  }
-
-  client.login(settings.token);
-};
-
-start();
+export * from "./bot.js";
+export * from "./chat_manager.js";
+export * from "./client.js";
+export * from "./const.js";
+export * from "./handler.js";
+export { default as pen } from "./pen.js";
+export * from "./plugin.js";
+export * from "./plugin.js";
+export * from "./roles.js";
+export * from "./roles.js";
+export * from "./translate.js";
+export * from "./translate.js";
+export * from "./user_manager.js";
+export * from "./user_manager.js";

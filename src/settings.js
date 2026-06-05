@@ -9,8 +9,40 @@
  */
 
 import "dotenv/config";
+import { read, write } from "./store.js";
 
-export default {
-  token: process.env.DISCORD_TOKEN,
-  prefix: process.env.PREFIX || "!",
-};
+const parsePrefix = (raw) =>
+  (raw || "!")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+class Settings {
+  constructor() {
+    const saved = read().settings || {};
+    this._token = process.env.DISCORD_TOKEN;
+    this._prefix = saved.prefix
+      ? (Array.isArray(saved.prefix) ? saved.prefix : parsePrefix(saved.prefix))
+      : parsePrefix(process.env.PREFIX);
+  }
+
+  get token() {
+    return this._token;
+  }
+
+  get prefix() {
+    return this._prefix;
+  }
+
+  set prefix(val) {
+    this._prefix = Array.isArray(val) ? val : parsePrefix(val);
+    this._save();
+  }
+
+  _save() {
+    const current = read();
+    write({ ...current, settings: { prefix: this._prefix } });
+  }
+}
+
+export default new Settings();

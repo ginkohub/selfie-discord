@@ -12,7 +12,6 @@ import { ChatManager } from "./chat_manager.js";
 import { EVENTS } from "./const.js";
 import pen from "./pen.js";
 import { getPluginsByEvent } from "./plugin.js";
-import { Role } from "./roles.js";
 import settings from "./settings.js";
 import { UserManager } from "./user_manager.js";
 
@@ -39,38 +38,24 @@ export class Handler {
         if (eventType === EVENTS.MESSAGE_CREATE) {
           const message = eventData;
           const content = message.content;
+          if (!content) continue;
           const prefix = settings.prefix;
-
-          if (plugin.roles?.length && message.author.id !== client.user.id) {
-            const user = this.userManager.getUser(message.author.id);
-
-            const pluginRoles = plugin.roles;
-            const userRoles = user?.roles;
-
-            if (!userRoles?.length) {
-              continue;
-            }
-
-            const pluginMin = Math.min(...pluginRoles);
-            const userMax = Math.max(...userRoles);
-
-            if (userMax < pluginMin) {
-              continue;
-            }
-          }
 
           if (plugin.cmd) {
             let matched = false;
             let commandUsed = "";
             let args = [];
 
-            if (content.startsWith(prefix)) {
-              const rawArgs = content.slice(prefix.length).trim().split(/ +/);
-              const cmd = rawArgs.shift().toLowerCase();
-              if (plugin.cmd.includes(cmd)) {
-                matched = true;
-                commandUsed = cmd;
-                args = rawArgs;
+            for (const p of prefix) {
+              if (content.startsWith(p)) {
+                const rawArgs = content.slice(p.length).trim().split(/ +/);
+                const cmd = rawArgs.shift().toLowerCase();
+                if (plugin.cmd.includes(cmd)) {
+                  matched = true;
+                  commandUsed = cmd;
+                  args = rawArgs;
+                  break;
+                }
               }
             }
 
@@ -103,15 +88,19 @@ export class Handler {
     const { client, cmd, args, event } = contextData;
 
     const senderId = event?.author?.id;
-    const user = this.userManager.getUser(senderId);
-    const userRole =
-      senderId === client.user.id ? Role.SUPERADMIN : Math.max(...user.roles);
+    const user = senderId ? this.userManager.getUser(senderId) : null;
 
-    if (plugin.roles) {
-      const hasRole = plugin.roles.some((role) => userRole >= role);
+    if (user && senderId !== client.user.id) {
+      if (user.banned) return;
+    }
+
+    if (plugin.roles && user) {
+      const hasRole =
+        senderId === client.user.id ||
+        plugin.roles.some((r) => user.isAtLeast(r));
       if (!hasRole) {
         pen.Warn(
-          `Role insufficient for ${cmd}. Required: ${plugin.roles}, User: ${userRole}`,
+          `Role insufficient for ${cmd}. Required: ${plugin.roles}, User: ${Math.max(...user.roles)}`,
         );
         return;
       }
@@ -121,8 +110,8 @@ export class Handler {
     const c = {
       client,
       event,
-      prefix: settings.prefix,
-      lang: user.lang,
+      prefix: settings.prefix[0],
+      lang: user?.lang || "en",
       cmd,
       args: Array.isArray(args) ? args.join(" ") : args,
       handler: () => this,

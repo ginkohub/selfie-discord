@@ -17,7 +17,9 @@ const DATA_FILE = path.join(__dirname, "../data.json");
 
 export const read = () => {
   if (!fs.existsSync(DATA_FILE)) return {};
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+  const raw = fs.readFileSync(DATA_FILE, "utf-8").trim();
+  if (!raw) return {};
+  return JSON.parse(raw);
 };
 
 export const write = (data) => {

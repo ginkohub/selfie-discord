@@ -11,35 +11,48 @@
 import { Role } from "./roles.js";
 import { read, write } from "./store.js";
 
+export class User {
+  constructor(data) {
+    this.id = data.id;
+    this.username = data.username ?? null;
+    this.displayName = data.displayName ?? null;
+    this.roles = data.roles ?? [Role.GUEST];
+    this.level = data.level ?? 1;
+    this.xp = data.xp ?? 0;
+    this.addedAt = data.addedAt ?? new Date().toISOString();
+    this.banned = data.banned ?? false;
+    this.bannedAt = data.bannedAt ?? null;
+    this.stats = data.stats ?? {};
+    this.lang = data.lang ?? "en";
+  }
+
+  isAtLeast(role) {
+    return Math.max(...this.roles) >= role;
+  }
+
+  hasRole(role) {
+    return this.roles.includes(role);
+  }
+}
+
 /**
  * Manager for user-related data and roles.
  */
 export class UserManager {
   constructor() {
-    /** @type {Object.<string, any>} */
+    /** @type {Object.<string, User>} */
     this.data = read().users || {};
+    this._saveTimer = null;
   }
 
   /**
    * Retrieves or initializes user data by ID.
    * @param {string} id - The user's unique ID.
-   * @returns {any} The user data object.
+   * @returns {User} The user object.
    */
   getUser(id) {
     if (!this.data[id]) {
-      this.data[id] = {
-        id,
-        username: null,
-        displayName: null,
-        roles: [Role.GUEST],
-        level: 1,
-        xp: 0,
-        addedAt: new Date().toISOString(),
-        banned: false,
-        bannedAt: null,
-        stats: {},
-        lang: "en",
-      };
+      this.data[id] = new User({ id });
     }
     return this.data[id];
   }
@@ -48,13 +61,13 @@ export class UserManager {
    * Updates user data and saves to store.
    * @param {string} id - The user ID.
    * @param {Object} update - The fields to update.
-   * @returns {any} The updated user object.
+   * @returns {User} The updated user object.
    */
   updateUser(id, update) {
-    const user = { ...this.getUser(id), ...update };
-    this.data[id] = user;
+    const data = { ...this.getUser(id), ...update };
+    this.data[id] = data instanceof User ? data : new User(data);
     this.save();
-    return user;
+    return this.data[id];
   }
 
   /**
@@ -64,16 +77,18 @@ export class UserManager {
    * @returns {boolean}
    */
   rolesEnough(id, requiredRoles) {
-    const user = this.getUser(id);
-    const maxRole = Math.max(...user.roles);
-    return requiredRoles.some((role) => maxRole >= role);
+    return requiredRoles.some((role) => this.getUser(id).isAtLeast(role));
   }
 
   /**
-   * Saves current user data to the global store.
+   * Saves current user data to the global store (debounced).
    */
   save() {
-    const current = read();
-    write({ ...current, users: this.data });
+    if (this._saveTimer) return;
+    this._saveTimer = setTimeout(() => {
+      this._saveTimer = null;
+      const current = read();
+      write({ ...current, users: this.data });
+    }, 5000);
   }
 }
