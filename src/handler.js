@@ -38,9 +38,9 @@ export class Handler {
         if (eventType === EVENTS.MESSAGE_CREATE) {
           const message = eventData;
           const content = message.content;
-          const prefix = settings.prefix;
+            const prefix = settings.prefix.length ? settings.prefix : ["!"];
 
-          if (plugin.cmd) {
+            if (plugin.cmd) {
             if (!content) continue;
 
             let matched = false;
@@ -111,7 +111,7 @@ export class Handler {
     const c = {
       client,
       event,
-      prefix: settings.prefix[0],
+      prefix: settings.prefix.length ? settings.prefix[0] : "!",
       lang: user?.lang || "en",
       cmd,
       args: Array.isArray(args) ? args.join(" ") : args,
