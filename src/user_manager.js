@@ -53,6 +53,8 @@ export class UserManager {
   getUser(id) {
     if (!this.data[id]) {
       this.data[id] = new User({ id });
+    } else if (!(this.data[id] instanceof User)) {
+      this.data[id] = new User(this.data[id]);
     }
     return this.data[id];
   }

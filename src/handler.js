@@ -38,10 +38,11 @@ export class Handler {
         if (eventType === EVENTS.MESSAGE_CREATE) {
           const message = eventData;
           const content = message.content;
-          if (!content) continue;
           const prefix = settings.prefix;
 
           if (plugin.cmd) {
+            if (!content) continue;
+
             let matched = false;
             let commandUsed = "";
             let args = [];

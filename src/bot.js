@@ -10,9 +10,10 @@
 
 import { createClient } from "./client.js";
 import { EVENTS } from "./const.js";
-import { dispatcher } from "./handler.js";
+import { dispatcher, handler } from "./handler.js";
 import pen from "./pen.js";
 import { initWatcher, loadPlugins } from "./plugin.js";
+import { Role } from "./roles.js";
 import settings from "./settings.js";
 
 export const start = async () => {
@@ -29,6 +30,11 @@ export const start = async () => {
 
   client.on(EVENTS.READY, () => {
     pen.Info(`${client.user.tag} is active`);
+    const bot = handler.userManager.getUser(client.user.id);
+    if (!bot.roles.includes(Role.SUPERADMIN)) {
+      bot.roles.push(Role.SUPERADMIN);
+      handler.userManager.save();
+    }
   });
 
   if (!settings.token) {
