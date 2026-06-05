@@ -51,12 +51,11 @@ export class UserManager {
    * @returns {User} The user object.
    */
   getUser(id) {
-    if (!this.data[id]) {
-      this.data[id] = new User({ id });
-    } else if (!(this.data[id] instanceof User)) {
-      this.data[id] = new User(this.data[id]);
+    const u = this.data[id];
+    if (u && !(u instanceof User)) {
+      this.data[id] = new User(u);
     }
-    return this.data[id];
+    return this.data[id] instanceof User ? this.data[id] : null;
   }
 
   /**

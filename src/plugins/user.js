@@ -137,8 +137,8 @@ export default [
       }
 
       mentions.forEach((u) => {
-        const user = c.handler().userManager.getUser(u.id);
-        if (!user.roles.includes(role)) {
+        const user = c.handler().userManager.updateUser(u.id, {});
+        if (user && !user.roles.includes(role)) {
           user.roles.push(role);
           c.handler().userManager.updateUser(u.id, { roles: user.roles });
         }
@@ -170,8 +170,8 @@ export default [
       }
 
       mentions.forEach((u) => {
-        const user = c.handler().userManager.getUser(u.id);
-        if (user.roles.includes(role)) {
+        const user = c.handler().userManager.updateUser(u.id, {});
+        if (user?.roles.includes(role)) {
           user.roles = user.roles.filter((r) => r !== role);
           if (user.roles.length === 0) user.roles.push(Role.GUEST);
           c.handler().userManager.updateUser(u.id, { roles: user.roles });
@@ -202,7 +202,7 @@ export default [
         return await c.reply("Usage: .user+ <id> or @mention");
 
       for (const id of targets) {
-        c.handler().userManager.getUser(id);
+        c.handler().userManager.updateUser(id, {});
       }
 
       await c.reply(`Added/verified ${targets.length} user(s).`);

@@ -31,7 +31,13 @@ export const start = async () => {
   client.on(EVENTS.READY, () => {
     pen.Info(`${client.user.tag} is active`);
     const bot = handler.userManager.getUser(client.user.id);
-    if (!bot.roles.includes(Role.SUPERADMIN)) {
+    if (!bot) {
+      handler.userManager.updateUser(client.user.id, {
+        username: client.user.username,
+        displayName: client.user.displayName,
+        roles: [Role.SUPERADMIN],
+      });
+    } else if (!bot.roles.includes(Role.SUPERADMIN)) {
       bot.roles.push(Role.SUPERADMIN);
       handler.userManager.save();
     }

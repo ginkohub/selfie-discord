@@ -19,6 +19,7 @@ export default {
 
     const userManager = c.handler().userManager;
     const user = userManager.getUser(message.author.id);
+    if (!user) return;
 
     // Increment message count
     const stats = user.stats || {};
