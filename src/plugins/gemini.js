@@ -133,22 +133,6 @@ export default {
     const client = getGenAI();
     if (!client) return await c.reply(t("no_key", { prefix: c.prefix }, c));
 
-    let query = args;
-    const ref = c.event.reference;
-    if (ref?.messageId) {
-      try {
-        const replied = await c.event.channel.messages.fetch(ref.messageId);
-        if (query) {
-          query = `${query} ${replied.content || ""}`;
-        } else {
-          query = replied.content || "";
-        }
-      } catch { }
-    }
-
-    query = query?.trim() || "";
-    if (!query) return await c.reply(t("usage", { prefix: c.prefix }, c));
-
     const channelId = c.event.channel?.id || c.event.author?.id;
 
     try {
@@ -162,7 +146,57 @@ export default {
         chats.set(channelId, chat);
       }
 
-      const resp = await chat.sendMessage({ message: query });
+      const parts = [];
+      let query = args;
+
+      const ref = c.event.reference;
+      let replied = null;
+      if (ref?.messageId) {
+        try {
+          replied = await c.event.channel.messages.fetch(ref.messageId);
+        } catch { }
+      }
+
+      if (replied) {
+        if (query) {
+          query = `${query} ${replied.content || ""}`;
+        } else {
+          query = replied.content || "";
+        }
+        for (const att of replied.attachments?.values() || []) {
+          try {
+            const res = await fetch(att.url);
+            if (!res.ok) continue;
+            const buf = Buffer.from(await res.arrayBuffer());
+            parts.push({
+              inlineData: {
+                data: buf.toString("base64"),
+                mimeType: att.contentType || "application/octet-stream",
+              },
+            });
+          } catch { }
+        }
+      }
+
+      if (query) parts.unshift({ text: query });
+
+      for (const att of c.event.attachments?.values() || []) {
+        try {
+          const res = await fetch(att.url);
+          if (!res.ok) continue;
+          const buf = Buffer.from(await res.arrayBuffer());
+          parts.push({
+            inlineData: {
+              data: buf.toString("base64"),
+              mimeType: att.contentType || "application/octet-stream",
+            },
+          });
+        } catch { }
+      }
+
+      if (parts.length === 0) return await c.reply(t("usage", { prefix: c.prefix }, c));
+
+      const resp = await chat.sendMessage({ message: parts });
       const text = resp?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (text) {
         if (c.cmd === "gmr") {
