@@ -43,13 +43,18 @@ getYT().catch(() => { });
 const YTDLP_SITES =
   /youtube\.com|youtu\.be|soundcloud\.com|twitter\.com|x\.com|reddit\.com/;
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
 export default {
   cmd: ["download", "dl"],
   cat: "tools",
   desc: "Download media from TikTok, Instagram, YouTube, etc.",
   roles: [Role.USER],
   exec: async (c) => {
-    let urls = (c.args || "").match(/https?:\/\/[^\s]+/g) || [];
+    const raw = c.args || "";
+    const allowLarge = /(?:^|\s)(?:-f|--force)(?:\s|$)/.test(raw);
+    const clean = raw.replace(/(?:^|\s)(?:-f|--force)(?:\s|$)/, " ").trim();
+    let urls = clean.match(/https?:\/\/[^\s]+/g) || [];
     if (urls.length === 0) {
       const ref = c.event.reference;
       if (ref?.messageId) {
@@ -81,10 +86,14 @@ export default {
 
           const buffer = await yt.getBuffer(url, ["-f", "best[ext=mp4]/best"]);
           if (buffer?.length) {
-            await c.reply({
-              content: lines,
-              files: [{ attachment: buffer, name: `${info.title}.mp4` }],
-            });
+            if (!allowLarge && buffer.length > MAX_FILE_SIZE) {
+              await c.reply(`${lines}\n*(file too large, not uploaded)*`);
+            } else {
+              await c.reply({
+                content: lines,
+                files: [{ attachment: buffer, name: `${info.title}.mp4` }],
+              });
+            }
           } else {
             await c.reply(lines);
           }
@@ -109,12 +118,21 @@ export default {
         if (mediaUrl) {
           const res = await fetch(mediaUrl);
           if (res.ok) {
-            const buf = Buffer.from(await res.arrayBuffer());
-            const ext = result.media.type === "image" ? "jpg" : "mp4";
-            const name = `${result.title || "media"}.${ext}`;
-            await c.reply({ content: lines, files: [{ attachment: buf, name }] });
+            const cl = Number(res.headers.get("content-length"));
+            if (!allowLarge && cl && cl > MAX_FILE_SIZE) {
+              await c.reply(`${lines}\nURL: ${mediaUrl} *(file too large)*`);
+            } else {
+              const buf = Buffer.from(await res.arrayBuffer());
+              if (!allowLarge && buf.length > MAX_FILE_SIZE) {
+                await c.reply(`${lines}\nURL: ${mediaUrl} *(file too large)*`);
+              } else {
+                const ext = result.media.type === "image" ? "jpg" : "mp4";
+                const name = `${result.title || "media"}.${ext}`;
+                await c.reply({ content: lines, files: [{ attachment: buf, name }] });
+              }
+            }
           } else {
-            await c.reply(lines);
+            await c.reply(`${lines}\nURL: ${mediaUrl}`);
           }
         } else {
           await c.reply(lines);
