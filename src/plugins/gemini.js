@@ -15,6 +15,7 @@ import { Role } from "../roles.js";
 import { read, write } from "../store.js";
 import { translate } from "../translate.js";
 import { searchWiki } from "../wiki.js";
+import { getWeather } from "../weather.js";
 
 const MODELS = {
   "gemini-3.5-flash": "",
@@ -106,31 +107,9 @@ async function handleFunctionCall(fc, c) {
     }
     case "get_weather": {
       try {
-        const geo = await (
-          await fetch(
-            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(args.city)}&count=1&language=en&format=json`,
-          )
-        ).json();
-        if (!geo.results?.length) return `City "${args.city}" not found`;
-        const { latitude, longitude, name, country } = geo.results[0];
-        const w = await (
-          await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`,
-          )
-        ).json();
-        const codes = {
-          0: "Clear",
-          1: "Mainly clear",
-          2: "Partly cloudy",
-          3: "Overcast",
-          45: "Fog",
-          51: "Drizzle",
-          61: "Rain",
-          71: "Snow",
-          95: "Thunderstorm",
-        };
-        const cond = codes[w.current.weather_code] || "Unknown";
-        return `${name}, ${country}: ${w.current.temperature_2m}°C, ${cond}, ${w.current.relative_humidity_2m}% humidity, wind ${w.current.wind_speed_10m} km/h`;
+        const result = await getWeather(args.city);
+        if (!result) return `City "${args.city}" not found`;
+        return `${result.location}: ${result.temp}°C, ${result.condition}, ${result.humidity}% humidity, wind ${result.wind} km/h`;
       } catch (e) {
         return `Weather fetch failed: ${e.message}`;
       }
