@@ -14,18 +14,26 @@ import { Role } from "../roles.js";
 import { read, write } from "../store.js";
 import { translate } from "../translate.js";
 
-const MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.5-pro",
-  "gemini-1.5-flash",
-  "gemini-1.5-pro",
-];
+const MODELS = {
+  "gemini-3.5-flash": "",
+  "gemini-3.1-flash-image": "",
+  "gemini-3-pro-image": "",
+  "gemini-3.1-flash-lite": "depr May 7, 2027",
+  "gemini-2.5-pro": "depr Oct 16, 2026",
+  "gemini-2.5-flash": "depr Oct 16, 2026",
+  "gemini-2.5-flash-lite": "depr Oct 16, 2026",
+  "gemini-3.1-flash-live-preview": "",
+  "gemini-2.5-flash-native-audio-preview-12-2025": "",
+};
+
+const MODEL_NAMES = Object.keys(MODELS);
+
+const modelListStr = () => MODEL_NAMES.map((m) => `- ${m}${MODELS[m] ? ` (${MODELS[m]})` : ""}`).join("\n");
 
 const t = translate({
   en: {
     usage: "Usage: `{prefix}gm <message>` or reply to a message",
-    no_key:
-      "Gemini API key not set. Set it via `{prefix}gm key <key>` or GEMINI_API_KEY env.",
+    no_key: "Gemini API key not set. Set it via `{prefix}gm key <key>` or GEMINI_API_KEY env.",
     model_set: "_Model set to {model}_",
     key_set: "_API key updated_",
     key_usage: "Usage: `{prefix}gm key <api_key>`",
@@ -33,8 +41,7 @@ const t = translate({
   },
   id: {
     usage: "Gunakan: `{prefix}gm <pesan>` atau balas pesan",
-    no_key:
-      "API key Gemini belum diatur. Atur via `{prefix}gm key <key>` atau env GEMINI_API_KEY.",
+    no_key: "API key Gemini belum diatur. Atur via `{prefix}gm key <key>` atau env GEMINI_API_KEY.",
     model_set: "_Model diubah ke {model}_",
     key_set: "_API key diperbarui_",
     key_usage: "Penggunaan: `{prefix}gm key <api_key>`",
@@ -60,7 +67,7 @@ function getApiKey() {
 
 function getModelName() {
   const saved = loadGeminiSettings();
-  return saved.model || MODELS[0];
+  return saved.model || MODEL_NAMES[0];
 }
 
 function getSystemInstruction() {
@@ -96,17 +103,15 @@ export default {
       saveGeminiSettings(s);
       genAI = null;
       chats.clear();
-      return await c.reply(t("key_set", {}, c));
+      return await c.react("✅");
     }
 
     if (sub === "model") {
       const model = rest.join(" ").trim();
       if (!model)
-        return await c.reply(
-          `${t("models", {}, c)}\n${MODELS.map((m) => `- ${m}`).join("\n")}`,
-        );
-      if (!MODELS.includes(model)) {
-        return await c.reply(`Invalid model. Available: ${MODELS.join(", ")}`);
+        return await c.reply(`${t("models", {}, c)}\n${modelListStr()}`);
+      if (!MODEL_NAMES.includes(model)) {
+        return await c.reply(`Invalid model. Available:\n${modelListStr()}`);
       }
       const s = loadGeminiSettings();
       s.model = model;
@@ -126,12 +131,12 @@ export default {
 
     if (sub === "models") {
       return await c.reply(
-        `${t("models", {}, c)}\n${MODELS.map((m) => `- ${m}`).join("\n")}`,
+        `${t("models", {}, c)}\n${modelListStr()}`,
       );
     }
 
     const client = getGenAI();
-    if (!client) return await c.reply(t("no_key", { prefix: c.prefix }, c));
+    if (!client) return await c.react("🔑");
 
     const channelId = c.event.channel?.id || c.event.author?.id;
 
@@ -194,7 +199,7 @@ export default {
         } catch { }
       }
 
-      if (parts.length === 0) return await c.reply(t("usage", { prefix: c.prefix }, c));
+      if (parts.length === 0) return await c.react("❓");
 
       const resp = await chat.sendMessage({ message: parts });
       const text = resp?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
@@ -213,7 +218,7 @@ export default {
       } else if (e.status === 401 || e.status === 403) {
         genAI = null;
         chats.clear();
-        await c.reply("API key invalid. Update via `gm key`.");
+        await c.react("🔑");
       } else {
         await c.react("❌");
       }
