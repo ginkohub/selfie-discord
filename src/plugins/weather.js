@@ -11,6 +11,7 @@
 import pen from "../pen.js";
 import { Role } from "../roles.js";
 import { translate } from "../translate.js";
+import { getWeather } from "../weather.js";
 
 const t = translate({
   en: {
@@ -41,25 +42,6 @@ const t = translate({
   },
 });
 
-const weatherCodes = {
-  0: "Clear sky",
-  1: "Mainly clear",
-  2: "Partly cloudy",
-  3: "Overcast",
-  45: "Fog",
-  48: "Depositing rime fog",
-  51: "Light drizzle",
-  53: "Moderate drizzle",
-  55: "Dense drizzle",
-  61: "Slight rain",
-  63: "Moderate rain",
-  65: "Heavy rain",
-  71: "Slight snow fall",
-  73: "Moderate snow fall",
-  75: "Heavy snow fall",
-  95: "Thunderstorm",
-};
-
 export default {
   cmd: ["weather", "cuaca"],
   cat: "tools",
@@ -69,53 +51,27 @@ export default {
     const query = (c.args || "").trim();
 
     if (!query || query === "?") {
-      const helpText = [
-        t("help_title", {}, c),
-        "",
-        t("help_usage", {}, c),
-        t("help_example", {}, c),
-      ].join("\n");
-      return await c.reply(helpText);
+      return await c.reply(
+        [t("help_title", {}, c), "", t("help_usage", {}, c), t("help_example", {}, c)].join("\n"),
+      );
     }
 
     try {
-      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`;
-      const geoRes = await fetch(geoUrl, {
-        headers: { "User-Agent": "SelfieBot/1.0" },
-      });
-      if (!geoRes.ok) throw new Error(`Geocoding failed: ${geoRes.status}`);
-      const geoData = await geoRes.json();
+      const result = await getWeather(query);
+      if (!result) return await c.reply(t("not_found", { query }, c));
 
-      if (!geoData.results || geoData.results.length === 0) {
-        return await c.reply(t("not_found", { query }, c));
-      }
-
-      const location = geoData.results[0];
-      const { latitude, longitude, name, country } = location;
-
-      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`;
-      const weatherRes = await fetch(weatherUrl, {
-        headers: { "User-Agent": "SelfieBot/1.0" },
-      });
-      if (!weatherRes.ok)
-        throw new Error(`Weather fetch failed: ${weatherRes.status}`);
-      const weatherData = await weatherRes.json();
-
-      const current = weatherData.current;
-      const condition = weatherCodes[current.weather_code] || "Unknown";
-
-      const results = [
-        t("header", { location: `${name}, ${country}` }, c),
-        "",
-        t("temp", { temp: current.temperature_2m }, c),
-        t("condition", { condition }, c),
-        t("humidity", { humidity: current.relative_humidity_2m }, c),
-        t("wind", { wind: current.wind_speed_10m }, c),
-        "",
-        t("footer", {}, c),
-      ];
-
-      await c.reply(results.join("\n"));
+      await c.reply(
+        [
+          t("header", { location: result.location }, c),
+          "",
+          t("temp", { temp: result.temp }, c),
+          t("condition", { condition: result.condition }, c),
+          t("humidity", { humidity: result.humidity }, c),
+          t("wind", { wind: result.wind }, c),
+          "",
+          t("footer", {}, c),
+        ].join("\n"),
+      );
     } catch (e) {
       pen.Error(`weather-error: ${e.message}`);
       await c.reply(t("api_error", {}, c));
