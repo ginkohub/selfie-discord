@@ -65,7 +65,7 @@ const server = http.createServer((req, res) => {
  */
 export const startCaptchaServer = (port = 3000) => {
   try {
-    server.listen(port, "0.0.0.0", () => {
+    server.listen(port, "127.0.0.1", () => {
       pen.Info(`Built-in solver server: http://local.discord.com:${port}`);
     });
   } catch (e) {

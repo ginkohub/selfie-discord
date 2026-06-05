@@ -24,6 +24,7 @@ class Settings {
     this._prefix = saved.prefix
       ? (Array.isArray(saved.prefix) ? saved.prefix : parsePrefix(saved.prefix))
       : parsePrefix(process.env.PREFIX);
+    this._serverPort = saved.serverPort ?? (Number(process.env.CAPTCHA_PORT) || 0);
   }
 
   get token() {
@@ -39,9 +40,21 @@ class Settings {
     this._save();
   }
 
+  get serverPort() {
+    return this._serverPort;
+  }
+
+  set serverPort(val) {
+    this._serverPort = val;
+    this._save();
+  }
+
   _save() {
     const current = read();
-    write({ ...current, settings: { prefix: this._prefix } });
+    write({
+      ...current,
+      settings: { prefix: this._prefix, serverPort: this._serverPort },
+    });
   }
 }
 

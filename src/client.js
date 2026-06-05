@@ -11,8 +11,9 @@
 import { Client } from "discord.js-selfbot-v13";
 import { startCaptchaServer, waitForCaptcha } from "./captcha_server.js";
 import pen from "./pen.js";
+import settings from "./settings.js";
 
-startCaptchaServer(3000);
+if (settings.serverPort > 0) startCaptchaServer(settings.serverPort);
 
 export const createClient = () => {
   const client = new Client({
@@ -28,7 +29,7 @@ export const createClient = () => {
 
       pen.Info(`Sitekey: ${sitekey}`);
       pen.Info(`User-Agent: ${userAgent}`);
-      pen.Info("Built-in solver: http://local.discord.com:3000");
+      pen.Info(`Built-in solver: http://local.discord.com:${settings.serverPort}`);
       pen.Info("------------------------");
 
       const token = await waitForCaptcha({
