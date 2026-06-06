@@ -55,7 +55,7 @@ export default {
         )
       })
 
-      await c.event.channel.send(lines.join("\n"))
+      await c.reply(lines.join("\n"))
     } catch {
       await c.react("❌")
     }
