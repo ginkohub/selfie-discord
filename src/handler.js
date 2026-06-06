@@ -13,6 +13,7 @@ import { EVENTS } from "./const.js";
 import pen from "./pen.js";
 import { getPluginsByEvent } from "./plugin.js";
 import settings from "./settings.js";
+import { read, write } from "./store.js";
 import { UserManager } from "./user_manager.js";
 
 /**
@@ -22,6 +23,16 @@ export class Handler {
   constructor() {
     this.userManager = new UserManager();
     this.chatManager = new ChatManager();
+  }
+
+  getAliases() {
+    return read().aliases || {};
+  }
+
+  saveAliases(aliases) {
+    const data = read();
+    data.aliases = aliases;
+    write(data);
   }
 
   /**
@@ -46,14 +57,22 @@ export class Handler {
             let matched = false;
             let commandUsed = "";
             let args = [];
+            const aliases = this.getAliases();
 
             for (const p of prefix) {
               if (content.startsWith(p)) {
                 const rawArgs = content.slice(p.length).trim().split(/ +/);
                 const cmd = rawArgs.shift().toLowerCase();
+                const target = aliases[cmd];
                 if (plugin.cmd.includes(cmd)) {
                   matched = true;
                   commandUsed = cmd;
+                  args = rawArgs;
+                  break;
+                }
+                if (target && plugin.cmd.includes(target)) {
+                  matched = true;
+                  commandUsed = target;
                   args = rawArgs;
                   break;
                 }
