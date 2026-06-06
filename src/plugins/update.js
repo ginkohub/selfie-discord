@@ -28,7 +28,14 @@ export default {
         parts.push("(nothing to stash)");
       }
 
-      parts.push(run("git pull"));
+      const pullOut = run("git pull");
+      parts.push(pullOut);
+
+      if (pullOut.includes("Already up to date")) {
+        parts.push(run("git stash pop"));
+        return await c.reply(parts.join("\n").trim());
+      }
+
       parts.push(run("npm install"));
 
       try {
