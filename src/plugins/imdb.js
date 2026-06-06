@@ -75,7 +75,9 @@ export default [
         const ld = ldMatch ? JSON.parse(ldMatch[1]) : {};
         const rating = ld.aggregateRating?.ratingValue || "N/A";
         const plot = ld.description || "N/A";
-        const genre = Array.isArray(ld.genre) ? ld.genre.join(", ") : ld.genre || "N/A";
+        const genre = Array.isArray(ld.genre)
+          ? ld.genre.join(", ")
+          : ld.genre || "N/A";
         const runtime = ld.duration || "";
         const year = item.y ? ` (${item.y})` : "";
         const cast = item.s ? `\n⭐ ${item.s}` : "";
@@ -83,13 +85,15 @@ export default [
         const lines = [
           `**${item.l}**${year}`,
           `🎬 ${genre}`,
-          runtime ? `⏱ ${runtime.replace("PT", "").replace("H", "h ").replace("M", "m")}` : "",
+          runtime
+            ? `⏱ ${runtime.replace("PT", "").replace("H", "h ").replace("M", "m")}`
+            : "",
           `⭐ **${rating}**/10`,
           "",
           plot.slice(0, 500),
           cast,
           "",
-          `<https://imdb.com/title/${item.id}>`,
+          `https://imdb.com/title/${item.id}`,
         ];
 
         await c.reply(lines.filter(Boolean).join("\n"));
