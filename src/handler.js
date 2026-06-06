@@ -35,7 +35,7 @@ export class Handler {
 
     for (const plugin of plugins) {
       try {
-        if (eventType === EVENTS.MESSAGE_CREATE) {
+        if (eventType === EVENTS.MESSAGE_CREATE || eventType === EVENTS.MESSAGE_UPDATE) {
           const message = eventData;
           const content = message.content;
           const prefix = settings.prefix.length ? settings.prefix : ["!"];

@@ -24,7 +24,8 @@ export const start = async () => {
 
   for (const [_key, eventName] of Object.entries(EVENTS)) {
     client.on(eventName, (...args) => {
-      dispatcher(eventName, args[0], client);
+      const data = eventName === EVENTS.MESSAGE_UPDATE ? args[1] : args[0];
+      dispatcher(eventName, data, client);
     });
   }
 
