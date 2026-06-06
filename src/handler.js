@@ -46,7 +46,10 @@ export class Handler {
 
     for (const plugin of plugins) {
       try {
-        if (eventType === EVENTS.MESSAGE_CREATE || eventType === EVENTS.MESSAGE_UPDATE) {
+        if (
+          eventType === EVENTS.MESSAGE_CREATE ||
+          eventType === EVENTS.MESSAGE_UPDATE
+        ) {
           const message = eventData;
           const content = message.content;
           const prefix = settings.prefix.length ? settings.prefix : ["!"];
@@ -107,7 +110,7 @@ export class Handler {
   async execute(plugin, contextData) {
     const { client, cmd, args, event } = contextData;
 
-    const senderId = event?.author?.id;
+    const senderId = event?.author?.id || event?.user?.id;
     const user = senderId ? this.userManager.getUser(senderId) : null;
 
     if (user && senderId !== client.user.id) {
@@ -120,7 +123,7 @@ export class Handler {
         plugin.roles.some((r) => user.isAtLeast(r));
       if (!hasRole) {
         pen.Warn(
-          `Role insufficient for ${cmd}. Required: ${plugin.roles}, User: ${Math.max(...user.roles)}`,
+          `Role insufficient for ${cmd || plugin.desc}. Required: ${plugin.roles}, User: ${Math.max(...user.roles)}`,
         );
         return;
       }
