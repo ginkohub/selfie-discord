@@ -17,7 +17,8 @@ const t = translate({
   en: {
     help_title: "🌦 WEATHER INFO",
     help_usage: "Use `{prefix}weather [city_name]` to check current weather.",
-    help_example: "💡 Example: `{prefix}weather jakarta` or `{prefix}weather london`",
+    help_example:
+      "💡 Example: `{prefix}weather jakarta` or `{prefix}weather london`",
     not_found: '❌ City "{query}" not found!',
     api_error: "❌ Failed to fetch weather data.",
     header: "🌦 Weather in {location}",
@@ -30,7 +31,8 @@ const t = translate({
   id: {
     help_title: "🌦 INFO CUACA",
     help_usage: "Gunakan `{prefix}weather [nama_kota]` untuk cek cuaca.",
-    help_example: "💡 Contoh: `{prefix}weather jakarta` atau `{prefix}weather bandung`",
+    help_example:
+      "💡 Contoh: `{prefix}weather jakarta` atau `{prefix}weather bandung`",
     not_found: '❌ Kota "{query}" tidak ditemukan!',
     api_error: "❌ Gagal memuat data cuaca.",
     header: "🌦 Cuaca di {location}",
@@ -52,7 +54,12 @@ export default {
 
     if (!query || query === "?") {
       return await c.reply(
-        [t("help_title", {}, c), "", t("help_usage", {}, c), t("help_example", {}, c)].join("\n"),
+        [
+          t("help_title", {}, c),
+          "",
+          t("help_usage", {}, c),
+          t("help_example", {}, c),
+        ].join("\n"),
       );
     }
 

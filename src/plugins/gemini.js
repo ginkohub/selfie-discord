@@ -14,8 +14,8 @@ import pen from "../pen.js";
 import { Role } from "../roles.js";
 import { read, write } from "../store.js";
 import { translate } from "../translate.js";
-import { searchWiki } from "../wiki.js";
 import { getWeather } from "../weather.js";
+import { searchWiki } from "../wiki.js";
 
 const MODELS = {
   "gemini-3.5-flash": "",
@@ -266,7 +266,7 @@ export default {
       if (ref?.messageId) {
         try {
           replied = await c.event.channel.messages.fetch(ref.messageId);
-        } catch { }
+        } catch {}
       }
 
       if (replied) {
@@ -286,7 +286,7 @@ export default {
                 mimeType: att.contentType || "application/octet-stream",
               },
             });
-          } catch { }
+          } catch {}
         }
       }
 
@@ -303,7 +303,7 @@ export default {
               mimeType: att.contentType || "application/octet-stream",
             },
           });
-        } catch { }
+        } catch {}
       }
 
       if (parts.length === 0) return await c.react("❓");

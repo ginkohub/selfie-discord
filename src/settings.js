@@ -22,9 +22,12 @@ class Settings {
     const saved = read().settings || {};
     this._token = process.env.DISCORD_TOKEN;
     this._prefix = saved.prefix
-      ? (Array.isArray(saved.prefix) ? saved.prefix : parsePrefix(saved.prefix))
+      ? Array.isArray(saved.prefix)
+        ? saved.prefix
+        : parsePrefix(saved.prefix)
       : parsePrefix(process.env.PREFIX);
-    this._serverPort = saved.serverPort ?? (Number(process.env.CAPTCHA_PORT) || 0);
+    this._serverPort =
+      saved.serverPort ?? (Number(process.env.CAPTCHA_PORT) || 0);
   }
 
   get token() {

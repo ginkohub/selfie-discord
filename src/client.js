@@ -29,7 +29,9 @@ export const createClient = () => {
 
       pen.Info(`Sitekey: ${sitekey}`);
       pen.Info(`User-Agent: ${userAgent}`);
-      pen.Info(`Built-in solver: http://local.discord.com:${settings.serverPort}`);
+      pen.Info(
+        `Built-in solver: http://local.discord.com:${settings.serverPort}`,
+      );
       pen.Info("------------------------");
 
       const token = await waitForCaptcha({

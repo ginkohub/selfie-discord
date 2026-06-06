@@ -38,7 +38,7 @@ async function getYT() {
   return ytDlpPromise;
 }
 
-getYT().catch(() => { });
+getYT().catch(() => {});
 
 const YTDLP_SITES =
   /youtube\.com|youtu\.be|soundcloud\.com|twitter\.com|x\.com|reddit\.com/;
@@ -128,7 +128,10 @@ export default {
               } else {
                 const ext = result.media.type === "image" ? "jpg" : "mp4";
                 const name = `${result.title || "media"}.${ext}`;
-                await c.reply({ content: lines, files: [{ attachment: buf, name }] });
+                await c.reply({
+                  content: lines,
+                  files: [{ attachment: buf, name }],
+                });
               }
             }
           } else {

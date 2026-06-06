@@ -22,7 +22,10 @@ export default {
 
     const location = message.guild ? message.guild.name : "Direct Message";
     const type = message.author.id === client.user.id ? "OUT" : "IN";
-    const content = message.content?.length > 70 ? `${message.content.slice(0, 70)}...` : message.content || "(no content)";
+    const content =
+      message.content?.length > 70
+        ? `${message.content.slice(0, 70)}...`
+        : message.content || "(no content)";
 
     pen.Info(`${type} | [${location}] ${message.author.tag}: ${content}`);
   },
