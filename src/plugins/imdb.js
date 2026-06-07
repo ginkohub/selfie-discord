@@ -8,6 +8,10 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+/**
+ * Credits to IMDb (https://www.imdb.com) for the data.
+ */
+
 import { Role } from "../roles.js";
 
 const searchCache = new Map();

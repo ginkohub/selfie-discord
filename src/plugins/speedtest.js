@@ -8,6 +8,10 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+/**
+ * Credits to @ginkohub/speedtest-js for internet speed testing.
+ */
+
 import { SpeedTestService } from "@ginkohub/speedtest-js";
 import { Role } from "../roles.js";
 

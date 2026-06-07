@@ -8,6 +8,10 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+/**
+ * Credits to Wikipedia (https://www.wikipedia.org) and the Wikimedia API.
+ */
+
 export async function searchWiki(query) {
   const search = await (
     await fetch(

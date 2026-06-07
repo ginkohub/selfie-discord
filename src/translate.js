@@ -8,6 +8,10 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+/**
+ * Credits to Google Translate and LibreTranslate for translation services.
+ */
+
 export const translate = (translations) => {
   return (key, variables = {}, context = {}) => {
     const lang = context.lang || "en";

@@ -8,6 +8,10 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+/**
+ * Credits to Google (https://ai.google.dev) for the Gemini API and @google/genai library.
+ */
+
 import { execSync } from "node:child_process";
 import { GoogleGenAI } from "@google/genai";
 import pen from "../pen.js";

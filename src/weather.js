@@ -8,6 +8,10 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+/**
+ * Credits to Open-Meteo (https://open-meteo.com) for the weather API.
+ */
+
 const weatherCodes = {
   0: "Clear sky",
   1: "Mainly clear",

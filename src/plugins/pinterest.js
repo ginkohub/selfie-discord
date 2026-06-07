@@ -8,6 +8,10 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+/**
+ * Credits to https://github.com/siputzx for the API.
+ */
+
 import { Role } from "../roles.js";
 import { translate } from "../translate.js";
 

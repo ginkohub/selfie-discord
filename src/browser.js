@@ -8,6 +8,10 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+/**
+ * Credits to TikWM (https://tikwm.com), Instagram, and CapCut for media APIs.
+ */
+
 import { stringify } from "node:querystring";
 
 class Browser {

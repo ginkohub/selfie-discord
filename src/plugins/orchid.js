@@ -8,6 +8,10 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+/**
+ * Credits to CrossRef (https://www.crossref.org) for the API.
+ */
+
 import { Role } from "../roles.js"
 
 export default {
