@@ -117,7 +117,9 @@ export class Handler {
       if (user.banned) return;
     }
 
-    if (plugin.roles && user) {
+    if (plugin.roles?.length > 0) {
+      if (!user?.roles?.length) return;
+
       const hasRole =
         senderId === client.user.id ||
         plugin.roles.some((r) => user.isAtLeast(r));
