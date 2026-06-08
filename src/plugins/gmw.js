@@ -13,7 +13,6 @@
  * Cookies from gemini.google.com needed.
  */
 
-import { execSync } from "node:child_process";
 import fs from "node:fs";
 import https from "node:https";
 import path from "node:path";
@@ -21,8 +20,6 @@ import pen from "../pen.js";
 import { Role } from "../roles.js";
 import { read, write } from "../store.js";
 import { translate } from "../translate.js";
-import { getWeather } from "../weather.js";
-import { searchWiki } from "../wiki.js";
 
 const GEMINI_APP_URL = "https://gemini.google.com/app";
 const GEMINI_STREAM_GENERATE_URL =
@@ -110,7 +107,7 @@ class GeminiWebClient {
   #accessTokenTime = 0;
   #cookieMap = {};
   #timeout = 300000;
-  #log = () => { };
+  #log = () => {};
 
   constructor(options = {}) {
     this.#agent = new https.Agent({
@@ -279,7 +276,7 @@ class GeminiWebClient {
   #parseTextForCalls(text) {
     const calls = [];
     const regex = /<tool_call>([^<]+)<\/tool_call>/g;
-    for (; ;) {
+    for (;;) {
       const m = regex.exec(text);
       if (!m) break;
       try {
@@ -287,7 +284,7 @@ class GeminiWebClient {
         if (data.name && data.params) {
           calls.push({ name: data.name, params: data.params });
         }
-      } catch { }
+      } catch {}
     }
     return calls.length > 0 ? calls : null;
   }
@@ -321,7 +318,7 @@ class GeminiWebClient {
         ) {
           texts.push(candidate);
         }
-      } catch { }
+      } catch {}
     }
     let text =
       texts.length > 0
@@ -433,106 +430,6 @@ class GeminiWebClient {
   }
 }
 
-const FUNCTION_DECLARATIONS = [
-  {
-    name: "execute_shell",
-    description:
-      "Execute a shell command on the server. Requires admin privileges.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        command: {
-          type: "STRING",
-          description: "The shell command to execute",
-        },
-      },
-      required: ["command"],
-    },
-  },
-  {
-    name: "get_weather",
-    description: "Get current weather for a city",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        city: { type: "STRING", description: "City name" },
-      },
-      required: ["city"],
-    },
-  },
-  {
-    name: "react",
-    description: "React to the user's message with an emoji",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        emoji: { type: "STRING", description: "The emoji to react with" },
-      },
-      required: ["emoji"],
-    },
-  },
-  {
-    name: "search_wikipedia",
-    description: "Search Wikipedia for a topic and get a summary",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        query: { type: "STRING", description: "The search query" },
-      },
-      required: ["query"],
-    },
-  },
-];
-
-async function handleFunctionCall(fc, c) {
-  const { name, params } = fc;
-  switch (name) {
-    case "execute_shell": {
-      const user = c.handler().userManager.getUser(c.senderJid);
-      if (!user?.isAtLeast(Role.ADMIN)) {
-        return "Permission denied: admin role required";
-      }
-      try {
-        const out = execSync(params.command, {
-          encoding: "utf-8",
-          timeout: 15000,
-        });
-        return out.slice(0, 5000) || "(empty output)";
-      } catch (e) {
-        return e.stderr || e.message;
-      }
-    }
-    case "get_weather": {
-      try {
-        const result = await getWeather(params.city);
-        if (!result) return `City "${params.city}" not found`;
-        return `${result.location}: ${result.temp}°C, ${result.condition}, ${result.humidity}% humidity, wind ${result.wind} km/h`;
-      } catch (e) {
-        return `Weather fetch failed: ${e.message}`;
-      }
-    }
-    case "react": {
-      try {
-        await c.event.react(params.emoji);
-        return `Reacted with ${params.emoji}`;
-      } catch {
-        return "Failed to react";
-      }
-    }
-    case "search_wikipedia": {
-      try {
-        const result = await searchWiki(params.query);
-        if (!result) return `No results found for "${params.query}"`;
-        return `${result.title}: ${(result.text || "No extract available").slice(0, 2000)}\n${result.url}`;
-      } catch (e) {
-        return `Wikipedia search failed: ${e.message}`;
-      }
-    }
-    default:
-      return `Unknown function: ${name}`;
-  }
-}
-
 const t = translate({
   en: {
     usage: "Usage: `{prefix}gmw <message>` or reply to a message",
@@ -574,7 +471,7 @@ function saveSettings(s) {
 function getClient() {
   const s = loadSettings();
   try {
-    const cl = new GeminiWebClient({ log: () => { } });
+    const cl = new GeminiWebClient({ log: () => {} });
     if (!s.cookies || Object.keys(s.cookies).length === 0) return null;
     const arr = Object.entries(s.cookies).map(([name, value]) => ({
       name,
@@ -714,7 +611,7 @@ export default [
       if (ref?.messageId) {
         try {
           replied = await c.event.channel.messages.fetch(ref.messageId);
-        } catch { }
+        } catch {}
       }
 
       if (replied) {
@@ -728,34 +625,7 @@ export default [
       if (!query) return await c.reply(t("usage", { prefix: c.prefix }, c));
 
       try {
-        const tools = FUNCTION_DECLARATIONS.map((fn) => ({
-          type: "function",
-          function: fn,
-        }));
-
-        let r = await client.ask(query, { model, systemPrompt, tools });
-
-        if (r.tools && r.tools.length > 0) {
-          const toolResults = [];
-          for (const call of r.tools) {
-            const res = await handleFunctionCall(
-              { name: call.name, params: call.params },
-              c,
-            );
-            toolResults.push({ name: call.name, result: res });
-          }
-
-          const followUp = `\n\nTool Results:\n${toolResults
-            .map((t) => `Function ${t.name}: ${JSON.stringify(t.result)}`)
-            .join("\n")}`;
-
-          r = await client.ask(query + followUp, {
-            model,
-            systemPrompt,
-            tools,
-          });
-        }
-
+        const r = await client.ask(query, { model, systemPrompt });
         if (c.cmd === "gmwr") {
           const msg = await c.event.edit(r.response);
           if (msg?.id) gmwMessages.add(msg.id);
@@ -791,35 +661,10 @@ export default [
       if (!client) return;
 
       try {
-        const tools = FUNCTION_DECLARATIONS.map((fn) => ({
-          type: "function",
-          function: fn,
-        }));
-
-        let r = await client.ask(query, { model, systemPrompt, tools });
-
-        if (r.tools && r.tools.length > 0) {
-          const toolResults = [];
-          for (const call of r.tools) {
-            const res = await handleFunctionCall(
-              { name: call.name, params: call.params },
-              c,
-            );
-            toolResults.push({ name: call.name, result: res });
-          }
-          const followUp = `\n\nTool Results:\n${toolResults
-            .map((t) => `Function ${t.name}: ${JSON.stringify(t.result)}`)
-            .join("\n")}`;
-          r = await client.ask(query + followUp, {
-            model,
-            systemPrompt,
-            tools,
-          });
-        }
-
+        const r = await client.ask(query, { model, systemPrompt });
         const sent = await msg.reply(r.response);
         if (sent?.id) gmwMessages.add(sent.id);
-      } catch { }
+      } catch {}
     },
   },
 ];
