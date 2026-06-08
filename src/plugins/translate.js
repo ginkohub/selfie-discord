@@ -8,72 +8,153 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+import { EVENTS } from "../const.js";
 import { Role } from "../roles.js";
+import { read, write } from "../store.js";
 import { translate, translateText } from "../translate.js";
 
 const t = translate({
   en: {
     usage:
-      "Usage: {prefix}tr [lang] [-r] [-e google|libre] <text>\n       {prefix}tr? — show this help\n       {prefix}trr — translate & edit in-place",
+      "Usage: {prefix}tr [lang] [-r] [-e google|libre] <text>\n       {prefix}tr? — show this help\n       {prefix}trr — translate & edit in-place\n       {prefix}tra <lang> <user> — auto-translate user's messages to this channel",
   },
   id: {
     usage:
-      "Penggunaan: {prefix}tr [lang] [-r] [-e google|libre] <teks>\n       {prefix}tr? — bantuan ini\n       {prefix}trr — terjemahkan & edit langsung",
+      "Penggunaan: {prefix}tr [lang] [-r] [-e google|libre] <teks>\n       {prefix}tr? — bantuan ini\n       {prefix}trr — terjemahkan & edit langsung\n       {prefix}tra <lang> <user> — auto-translate pesan user ke channel ini",
   },
 });
 
-export default {
-  cmd: ["tr", "trr", "tr?", "translate"],
-  cat: "tools",
-  desc: "Translate text (Google/LibreTranslate)",
-  roles: [Role.USER],
-  exec: async (c) => {
-    if (c.cmd === "tr?")
-      return await c.reply(t("usage", { prefix: c.prefix }, c));
+export default [
+  {
+    cmd: ["tr", "trr", "tr?", "translate"],
+    cat: "tools",
+    desc: "Translate text (Google/LibreTranslate)",
+    roles: [Role.USER],
+    exec: async (c) => {
+      if (c.cmd === "tr?")
+        return await c.reply(t("usage", { prefix: c.prefix }, c));
 
-    const raw = c.args?.trim() || "";
+      const raw = c.args?.trim() || "";
 
-    let target = "en";
-    let editLast = c.cmd === "trr";
-    let engine = "google";
-    let langSet = false;
-    const textParts = [];
+      let target = "en";
+      let editLast = c.cmd === "trr";
+      let engine = "google";
+      let langSet = false;
+      const textParts = [];
 
-    const tokens = raw.split(/\s+/);
-    for (let i = 0; i < tokens.length; i++) {
-      const p = tokens[i];
-      if (p === "-r") {
-        editLast = true;
-      } else if (p === "-e" && i + 1 < tokens.length) {
-        engine = tokens[++i];
-      } else if (!langSet && /^[a-z]{2}$/.test(p)) {
-        target = p;
-        langSet = true;
-      } else {
-        textParts.push(p);
+      const tokens = raw.split(/\s+/);
+      for (let i = 0; i < tokens.length; i++) {
+        const p = tokens[i];
+        if (p === "-r") {
+          editLast = true;
+        } else if (p === "-e" && i + 1 < tokens.length) {
+          engine = tokens[++i];
+        } else if (!langSet && /^[a-z]{2}$/.test(p)) {
+          target = p;
+          langSet = true;
+        } else {
+          textParts.push(p);
+        }
       }
-    }
 
-    let text = textParts.join(" ");
-    if (!text) {
-      const ref = c.event.reference;
-      if (ref?.messageId) {
-        const replied = await c.event.channel.messages.fetch(ref.messageId);
-        text = replied.content;
+      let text = textParts.join(" ");
+      if (!text) {
+        const ref = c.event.reference;
+        if (ref?.messageId) {
+          const replied = await c.event.channel.messages.fetch(ref.messageId);
+          text = replied.content;
+        }
       }
-    }
-    if (!text) return await c.react("❌");
+      if (!text) return await c.react("❌");
 
-    try {
-      const translated = await translateText(text, target, { engine });
+      try {
+        const translated = await translateText(text, target, { engine });
 
-      if (editLast) {
-        await c.event.edit(translated);
-      } else {
-        await c.reply(translated);
+        if (editLast) {
+          await c.event.edit(translated);
+        } else {
+          await c.reply(translated);
+        }
+      } catch (_err) {
+        await c.react("❌");
       }
-    } catch (_err) {
-      await c.react("❌");
-    }
+    },
   },
-};
+  {
+    cmd: ["tra"],
+    cat: "tools",
+    desc: "Auto-translate a user's messages to this channel",
+    roles: [Role.USER],
+    exec: async (c) => {
+      const parts = c.args?.trim().split(/\s+/) || [];
+      if (parts.length < 2) return await c.react("❌");
+
+      const lang = parts[0];
+      if (!/^[a-z]{2}$/.test(lang)) return await c.react("❌");
+
+      const mention = c.event.mentions.users.first();
+      let userId;
+      let resolved;
+
+      if (mention) {
+        userId = mention.id;
+        resolved = mention.username;
+      } else {
+        const name = parts.slice(1).join(" ").toLowerCase();
+        if (c.event.guild) {
+          const members = await c.event.guild.members.fetch();
+          const member = members.find(
+            (m) =>
+              m.user.username.toLowerCase() === name ||
+              m.displayName.toLowerCase() === name,
+          );
+          if (!member) return await c.react("❌");
+          userId = member.id;
+          resolved = member.user.username;
+        } else {
+          return await c.react("❌");
+        }
+      }
+
+      const data = read();
+      data.translate = data.translate || {};
+      data.translate.storeChannel = c.event.channel.id;
+      data.translate.autoList = data.translate.autoList || [];
+
+      if (!data.translate.autoList.some((e) => e.userId === userId)) {
+        data.translate.autoList.push({ userId, lang, username: resolved });
+      }
+
+      write(data);
+      return await c.react("✅");
+    },
+  },
+  {
+    events: [EVENTS.MESSAGE_CREATE],
+    exec: async (c) => {
+      const msg = c.event;
+      if (msg.author.bot) return;
+      if (!msg.content) return;
+
+      const store = read().translate;
+      if (!store?.storeChannel || !store?.autoList?.length) return;
+
+      const entry = store.autoList.find(
+        (e) =>
+          e.userId === msg.author.id ||
+          e.username?.toLowerCase() === msg.author.username.toLowerCase(),
+      );
+      if (!entry) return;
+
+      try {
+        const translated = await translateText(msg.content, entry.lang);
+        const channel = await c.client.channels.fetch(store.storeChannel);
+        if (channel?.isTextBased()) {
+          await channel.send(`**${msg.author.username}**: ${translated}`);
+        }
+      } catch (_err) {
+        // silently ignore
+      }
+    },
+  },
+];
