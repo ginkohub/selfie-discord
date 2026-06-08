@@ -110,7 +110,7 @@ class GeminiWebClient {
   #accessTokenTime = 0;
   #cookieMap = {};
   #timeout = 300000;
-  #log = () => {};
+  #log = () => { };
 
   constructor(options = {}) {
     this.#agent = new https.Agent({
@@ -279,7 +279,7 @@ class GeminiWebClient {
   #parseTextForCalls(text) {
     const calls = [];
     const regex = /<tool_call>([^<]+)<\/tool_call>/g;
-    for (;;) {
+    for (; ;) {
       const m = regex.exec(text);
       if (!m) break;
       try {
@@ -287,7 +287,7 @@ class GeminiWebClient {
         if (data.name && data.params) {
           calls.push({ name: data.name, params: data.params });
         }
-      } catch {}
+      } catch { }
     }
     return calls.length > 0 ? calls : null;
   }
@@ -321,7 +321,7 @@ class GeminiWebClient {
         ) {
           texts.push(candidate);
         }
-      } catch {}
+      } catch { }
     }
     let text =
       texts.length > 0
@@ -574,7 +574,7 @@ function saveSettings(s) {
 function getClient() {
   const s = loadSettings();
   try {
-    const cl = new GeminiWebClient({ log: () => {} });
+    const cl = new GeminiWebClient({ log: () => { } });
     if (!s.cookies || Object.keys(s.cookies).length === 0) return null;
     const arr = Object.entries(s.cookies).map(([name, value]) => ({
       name,
@@ -587,176 +587,239 @@ function getClient() {
   }
 }
 
-export default {
-  cmd: ["gmw", "gmwr"],
-  cat: "ai",
-  desc: "Chat with Gemini (web, no API key)",
-  roles: [Role.USER],
-  exec: async (c) => {
-    const args = (c.args || "").trim();
-    const sp = args.indexOf(" ");
-    const sub = sp === -1 ? args : args.slice(0, sp);
-    const rest = sp === -1 ? [] : [args.slice(sp + 1).trim()];
+const gmwMessages = new Set();
 
-    if (sub === "cookies") {
-      const raw = rest.join(" ").trim();
-      const s = loadSettings();
+export default [
+  {
+    cmd: ["gmw", "gmwr"],
+    cat: "ai",
+    desc: "Chat with Gemini (web, no API key)",
+    roles: [Role.USER],
+    exec: async (c) => {
+      const args = (c.args || "").trim();
+      const sp = args.indexOf(" ");
+      const sub = sp === -1 ? args : args.slice(0, sp);
+      const rest = sp === -1 ? [] : [args.slice(sp + 1).trim()];
 
-      if (!raw) {
-        const stored = s.cookies ? Object.keys(s.cookies).length : 0;
-        const status = stored > 0 ? `${stored} cookie(s) stored` : "not set";
-        return await c.reply(
-          t(
-            "cookies_status",
-            { status, required: REQUIRED_COOKIES.join(", ") },
-            c,
-          ),
-        );
-      }
+      if (sub === "cookies") {
+        const raw = rest.join(" ").trim();
+        const s = loadSettings();
 
-      if (raw === "clear") {
-        delete s.cookies;
-        saveSettings(s);
-        return await c.reply(t("cookies_cleared", {}, c));
-      }
-
-      if (raw.startsWith("{") || raw.startsWith("[")) {
-        let map = {};
-        try {
-          map = JSON.parse(raw.replace(/'/g, '"'));
-        } catch {
+        if (!raw) {
+          const stored = s.cookies ? Object.keys(s.cookies).length : 0;
+          const status = stored > 0 ? `${stored} cookie(s) stored` : "not set";
           return await c.reply(
-            'Invalid JSON. Use format: `{ "name": "value" }`',
+            t(
+              "cookies_status",
+              { status, required: REQUIRED_COOKIES.join(", ") },
+              c,
+            ),
           );
         }
-        if (!map || typeof map !== "object" || Array.isArray(map)) {
-          const arr = Array.isArray(map) ? map : [];
-          map = {};
-          for (const item of arr) {
-            if (item.name && item.value) map[item.name] = item.value;
-          }
+
+        if (raw === "clear") {
+          delete s.cookies;
+          saveSettings(s);
+          return await c.reply(t("cookies_cleared", {}, c));
         }
-        const keys = Object.keys(map);
-        if (keys.length === 0) return await c.react("❌");
-        s.cookies = { ...(s.cookies || {}), ...map };
-        saveSettings(s);
-        const ok = REQUIRED_COOKIES.every((n) => s.cookies[n]);
-        const reply = `${t("cookies_set", {}, c)}${ok ? "" : `\nMissing required: ${REQUIRED_COOKIES.filter((n) => !s.cookies[n]).join(", ")}`}`;
-        return await c.reply(reply);
+
+        if (raw.startsWith("{") || raw.startsWith("[")) {
+          let map = {};
+          try {
+            map = JSON.parse(raw.replace(/'/g, '"'));
+          } catch {
+            return await c.reply(
+              'Invalid JSON. Use format: `{ "name": "value" }`',
+            );
+          }
+          if (!map || typeof map !== "object" || Array.isArray(map)) {
+            const arr = Array.isArray(map) ? map : [];
+            map = {};
+            for (const item of arr) {
+              if (item.name && item.value) map[item.name] = item.value;
+            }
+          }
+          const keys = Object.keys(map);
+          if (keys.length === 0) return await c.react("❌");
+          s.cookies = { ...(s.cookies || {}), ...map };
+          saveSettings(s);
+          const ok = REQUIRED_COOKIES.every((n) => s.cookies[n]);
+          const reply = `${t("cookies_set", {}, c)}${ok ? "" : `\nMissing required: ${REQUIRED_COOKIES.filter((n) => !s.cookies[n]).join(", ")}`}`;
+          return await c.reply(reply);
+        }
+
+        if (/[=:]/.test(raw)) {
+          const pairs = raw.split(/ +/);
+          const map = {};
+          let hasPair = false;
+          for (const pair of pairs) {
+            const sep = pair.indexOf("=") !== -1 ? "=" : ":";
+            const idx = pair.indexOf(sep);
+            if (idx === -1) continue;
+            const name = pair.slice(0, idx).trim();
+            let value = pair.slice(idx + 1).trim();
+            value = value.replace(/^["']|["']$/g, "");
+            if (name && value) {
+              map[name] = value;
+              hasPair = true;
+            }
+          }
+          if (!hasPair) return await c.react("❌");
+          s.cookies = { ...(s.cookies || {}), ...map };
+          saveSettings(s);
+          const ok = REQUIRED_COOKIES.every((n) => s.cookies[n]);
+          const reply = `${t("cookies_set", {}, c)}${ok ? "" : `\nMissing required: ${REQUIRED_COOKIES.filter((n) => !s.cookies[n]).join(", ")}`}`;
+          return await c.reply(reply);
+        }
+
+        return await c.react("❌");
       }
 
-      if (/[=:]/.test(raw)) {
-        const pairs = raw.split(/ +/);
-        const map = {};
-        let hasPair = false;
-        for (const pair of pairs) {
-          const sep = pair.indexOf("=") !== -1 ? "=" : ":";
-          const idx = pair.indexOf(sep);
-          if (idx === -1) continue;
-          const name = pair.slice(0, idx).trim();
-          let value = pair.slice(idx + 1).trim();
-          value = value.replace(/^["']|["']$/g, "");
-          if (name && value) {
-            map[name] = value;
-            hasPair = true;
-          }
+      if (sub === "model") {
+        const model = rest.join(" ").trim();
+        if (!model)
+          return await c.reply(`${t("models", {}, c)}\n${modelListStr()}`);
+        if (!MODEL_NAMES.includes(model)) {
+          return await c.reply(`Invalid model. Available:\n${modelListStr()}`);
         }
-        if (!hasPair) return await c.react("❌");
-        s.cookies = { ...(s.cookies || {}), ...map };
+        const s = loadSettings();
+        s.model = model;
         saveSettings(s);
-        const ok = REQUIRED_COOKIES.every((n) => s.cookies[n]);
-        const reply = `${t("cookies_set", {}, c)}${ok ? "" : `\nMissing required: ${REQUIRED_COOKIES.filter((n) => !s.cookies[n]).join(", ")}`}`;
-        return await c.reply(reply);
+        return await c.reply(t("model_set", { model }, c));
       }
 
-      return await c.react("❌");
-    }
+      if (sub === "prompt") {
+        const prompt = rest.join(" ").trim();
+        const s = loadSettings();
+        s.systemPrompt = prompt;
+        saveSettings(s);
+        return await c.reply(t("prompt_set", {}, c));
+      }
 
-    if (sub === "model") {
-      const model = rest.join(" ").trim();
-      if (!model)
+      if (sub === "models") {
         return await c.reply(`${t("models", {}, c)}\n${modelListStr()}`);
-      if (!MODEL_NAMES.includes(model)) {
-        return await c.reply(`Invalid model. Available:\n${modelListStr()}`);
       }
+
+      const client = getClient();
+      if (!client) return await c.react("🔑");
+
       const s = loadSettings();
-      s.model = model;
-      saveSettings(s);
-      return await c.reply(t("model_set", { model }, c));
-    }
+      const model = s.model || "gemini-3-flash";
+      const systemPrompt = s.systemPrompt || "";
 
-    if (sub === "prompt") {
-      const prompt = rest.join(" ").trim();
-      const s = loadSettings();
-      s.systemPrompt = prompt;
-      saveSettings(s);
-      return await c.reply(t("prompt_set", {}, c));
-    }
+      let query = args;
 
-    if (sub === "models") {
-      return await c.reply(`${t("models", {}, c)}\n${modelListStr()}`);
-    }
+      const ref = c.event.reference;
+      let replied = null;
+      if (ref?.messageId) {
+        try {
+          replied = await c.event.channel.messages.fetch(ref.messageId);
+        } catch { }
+      }
 
-    const client = getClient();
-    if (!client) return await c.react("🔑");
+      if (replied) {
+        if (query) {
+          query = `${query} ${replied.content || ""}`;
+        } else {
+          query = replied.content || "";
+        }
+      }
 
-    const s = loadSettings();
-    const model = s.model || "gemini-3-flash";
-    const systemPrompt = s.systemPrompt || "";
+      if (!query) return await c.reply(t("usage", { prefix: c.prefix }, c));
 
-    let query = args;
-
-    const ref = c.event.reference;
-    let replied = null;
-    if (ref?.messageId) {
       try {
-        replied = await c.event.channel.messages.fetch(ref.messageId);
-      } catch {}
-    }
+        const tools = FUNCTION_DECLARATIONS.map((fn) => ({
+          type: "function",
+          function: fn,
+        }));
 
-    if (replied) {
-      if (query) {
-        query = `${query} ${replied.content || ""}`;
-      } else {
-        query = replied.content || "";
-      }
-    }
+        let r = await client.ask(query, { model, systemPrompt, tools });
 
-    if (!query) return await c.reply(t("usage", { prefix: c.prefix }, c));
+        if (r.tools && r.tools.length > 0) {
+          const toolResults = [];
+          for (const call of r.tools) {
+            const res = await handleFunctionCall(
+              { name: call.name, params: call.params },
+              c,
+            );
+            toolResults.push({ name: call.name, result: res });
+          }
 
-    try {
-      const tools = FUNCTION_DECLARATIONS.map((fn) => ({
-        type: "function",
-        function: fn,
-      }));
+          const followUp = `\n\nTool Results:\n${toolResults
+            .map((t) => `Function ${t.name}: ${JSON.stringify(t.result)}`)
+            .join("\n")}`;
 
-      let r = await client.ask(query, { model, systemPrompt, tools });
-
-      if (r.tools && r.tools.length > 0) {
-        const toolResults = [];
-        for (const call of r.tools) {
-          const res = await handleFunctionCall(
-            { name: call.name, params: call.params },
-            c,
-          );
-          toolResults.push({ name: call.name, result: res });
+          r = await client.ask(query + followUp, {
+            model,
+            systemPrompt,
+            tools,
+          });
         }
 
-        const followUp = `\n\nTool Results:\n${toolResults
-          .map((t) => `Function ${t.name}: ${JSON.stringify(t.result)}`)
-          .join("\n")}`;
-
-        r = await client.ask(query + followUp, { model, systemPrompt, tools });
+        if (c.cmd === "gmwr") {
+          const msg = await c.event.edit(r.response);
+          if (msg?.id) gmwMessages.add(msg.id);
+        } else {
+          const msg = await c.reply(r.response);
+          if (msg?.id) gmwMessages.add(msg.id);
+        }
+      } catch (e) {
+        pen.Error("gmw:", e.message);
+        await c.react("❌");
       }
-
-      if (c.cmd === "gmwr") {
-        await c.event.edit(r.response);
-      } else {
-        await c.reply(r.response);
-      }
-    } catch (e) {
-      pen.Error("gmw:", e.message);
-      await c.react("❌");
-    }
+    },
   },
-};
+  {
+    events: ["messageCreate"],
+    roles: [Role.USER],
+    exec: async (c) => {
+      const msg = c.event;
+      if (msg.author.id === c.client.user.id) return;
+
+      const ref = msg.reference;
+      if (!ref?.messageId) return;
+      if (!gmwMessages.has(ref.messageId)) return;
+
+      const query = msg.content || "";
+      if (!query) return;
+
+      const s = loadSettings();
+      const model = s.model || "gemini-3-flash";
+      const systemPrompt = s.systemPrompt || "";
+
+      const client = getClient();
+      if (!client) return;
+
+      try {
+        const tools = FUNCTION_DECLARATIONS.map((fn) => ({
+          type: "function",
+          function: fn,
+        }));
+
+        let r = await client.ask(query, { model, systemPrompt, tools });
+
+        if (r.tools && r.tools.length > 0) {
+          const toolResults = [];
+          for (const call of r.tools) {
+            const res = await handleFunctionCall(
+              { name: call.name, params: call.params },
+              c,
+            );
+            toolResults.push({ name: call.name, result: res });
+          }
+          const followUp = `\n\nTool Results:\n${toolResults
+            .map((t) => `Function ${t.name}: ${JSON.stringify(t.result)}`)
+            .join("\n")}`;
+          r = await client.ask(query + followUp, {
+            model,
+            systemPrompt,
+            tools,
+          });
+        }
+
+        const sent = await msg.reply(r.response);
+        if (sent?.id) gmwMessages.add(sent.id);
+      } catch { }
+    },
+  },
+];
