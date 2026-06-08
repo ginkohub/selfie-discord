@@ -149,7 +149,7 @@ export default [
       try {
         const translated = await translateText(msg.content, entry.lang);
         const channel = await c.client.channels.fetch(store.storeChannel);
-        if (channel?.isTextBased()) {
+        if (channel) {
           await channel.send(`**${msg.author.username}**: ${translated}`);
         }
       } catch (_err) {
