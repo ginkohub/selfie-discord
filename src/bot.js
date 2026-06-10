@@ -8,6 +8,7 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
+import * as readline from "node:readline/promises";
 import { createClient } from "./client.js";
 import { EVENTS } from "./const.js";
 import { dispatcher, handler } from "./handler.js";
@@ -16,6 +17,19 @@ import { initWatcher, loadPlugins } from "./plugin.js";
 import { Role } from "./roles.js";
 import settings from "./settings.js";
 
+async function ask(q) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    const result = await rl.question(q);
+    return result;
+  } finally {
+    rl.close();
+  }
+}
 export const start = async () => {
   await loadPlugins();
   initWatcher();
@@ -44,12 +58,16 @@ export const start = async () => {
     }
   });
 
-  if (!settings.token) {
-    pen.Error("DISCORD_TOKEN missing in .env");
-    process.exit(1);
+  let DISCORD_TOKEN = settings.token;
+  if (!DISCORD_TOKEN) {
+    DISCORD_TOKEN = await ask("Enter Discord token: ");
+    if (!DISCORD_TOKEN) {
+      pen.Error("DISCORD_TOKEN missing in .env");
+      process.exit(1);
+    }
   }
 
-  client.login(settings.token);
+  client.login(DISCORD_TOKEN);
 };
 
 await start();
