@@ -39,5 +39,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14"
+  },
+  "imports": {
+    "#selfie/*": "./src/*",
+    "#selfie": "./src/index.js"
   }
 }
