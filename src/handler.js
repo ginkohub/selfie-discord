@@ -164,6 +164,33 @@ export class Handler {
           }
         }
       },
+      send: async (content) => {
+        if (event?.channel?.send) {
+          try {
+            return await event.channel.send(content);
+          } catch (e) {
+            pen.Error("Failed to send:", e);
+          }
+        }
+      },
+      edit: async (content) => {
+        if (event?.edit) {
+          try {
+            return await event.edit(content);
+          } catch (e) {
+            pen.Error("Failed to edit:", e);
+          }
+        }
+      },
+      delete: async () => {
+        if (event?.delete) {
+          try {
+            return await event.delete();
+          } catch (e) {
+            pen.Error("Failed to delete:", e);
+          }
+        }
+      },
     };
 
     try {

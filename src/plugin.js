@@ -22,6 +22,9 @@
  * @property {string} senderJid - The sender's unique ID.
  * @property {(content: string | {text: string}) => Promise<any>} reply - Reply to the message.
  * @property {(emoji: string) => Promise<any>} react - React to the message.
+ * @property {(content: string | {}) => Promise<any>} send - Send a message to the channel.
+ * @property {(content: string | {}) => Promise<any>} edit - Edit the message (only works on bot's own messages).
+ * @property {() => Promise<any>} delete - Delete the message.
  */
 
 /**
