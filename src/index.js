@@ -8,17 +8,19 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
-export * from "./bot.js";
+export * from "./browser.js";
+export * from "./captcha_server.js";
 export * from "./chat_manager.js";
 export * from "./client.js";
 export * from "./const.js";
 export * from "./handler.js";
 export { default as pen } from "./pen.js";
 export * from "./plugin.js";
-export * from "./plugin.js";
 export * from "./roles.js";
-export * from "./roles.js";
-export * from "./translate.js";
+export { default as settings } from "./settings.js";
+export * from "./store.js";
+export * from "./tools.js";
 export * from "./translate.js";
 export * from "./user_manager.js";
-export * from "./user_manager.js";
+export * from "./weather.js";
+export * from "./wiki.js";
