@@ -9,7 +9,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { Role } from "../roles.js";
+import { Role } from "#selfie";
 
 const run = (cmd) => execSync(cmd, { encoding: "utf-8" });
 

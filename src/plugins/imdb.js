@@ -12,7 +12,7 @@
  * Credits to IMDb (https://www.imdb.com) for the data.
  */
 
-import { Role } from "../roles.js";
+import { Role } from "#selfie";
 
 const searchCache = new Map();
 

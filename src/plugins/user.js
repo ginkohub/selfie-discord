@@ -8,8 +8,7 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
-import { getRoleBadge, Role } from "../roles.js";
-import { translate } from "../translate.js";
+import { getRoleBadge, Role, translate } from "#selfie";
 
 const t = translate({
   en: {

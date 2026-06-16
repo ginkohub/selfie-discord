@@ -8,9 +8,7 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
-import { Role } from "../roles.js";
-import { read, write } from "../store.js";
-import { translate } from "../translate.js";
+import { Role, read, translate, write } from "#selfie";
 
 const t = translate({
   en: { paused: "_Bot paused_", unpaused: "_Bot resumed_" },

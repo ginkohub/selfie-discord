@@ -13,7 +13,7 @@
  */
 
 import { SpeedTestService } from "@ginkohub/speedtest-js";
-import { Role } from "../roles.js";
+import { Role } from "#selfie";
 
 export default {
   cmd: ["speedtest", "st"],

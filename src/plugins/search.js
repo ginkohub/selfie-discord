@@ -12,8 +12,7 @@
  * Credits to https://github.com/siputzx for the API.
  */
 
-import { Role } from "../roles.js";
-import { translate } from "../translate.js";
+import { Role, translate } from "#selfie";
 
 const API = "https://api.siputzx.my.id/api/s";
 
@@ -79,7 +78,11 @@ export default {
 
         const items = data.data.slice(0, limit);
         const lines = items.map((i) =>
-          t("gsm_result", { name: i.name, description: (i.description || "").slice(0, 200) }, c),
+          t(
+            "gsm_result",
+            { name: i.name, description: (i.description || "").slice(0, 200) },
+            c,
+          ),
         );
         return await c.reply(lines.join("\n\n"));
       }

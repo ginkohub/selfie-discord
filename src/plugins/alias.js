@@ -8,7 +8,7 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
-import { Role } from "../roles.js";
+import { Role } from "#selfie";
 
 export default [
   {
@@ -37,7 +37,8 @@ export default [
       const parts = (c.args || "").split(/ +/);
       const name = parts.shift()?.toLowerCase();
       const target = parts.shift()?.toLowerCase();
-      if (!name || !target) return await c.reply("Usage: `alias+ <name> <target_command>`");
+      if (!name || !target)
+        return await c.reply("Usage: `alias+ <name> <target_command>`");
 
       const handler = c.handler();
       const aliases = handler.getAliases();

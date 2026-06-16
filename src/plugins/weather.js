@@ -8,10 +8,7 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
-import pen from "../pen.js";
-import { Role } from "../roles.js";
-import { translate } from "../translate.js";
-import { getWeather } from "../weather.js";
+import { getWeather, pen, Role, translate } from "#selfie";
 
 const t = translate({
   en: {

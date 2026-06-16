@@ -16,10 +16,7 @@
 import fs from "node:fs";
 import https from "node:https";
 import path from "node:path";
-import pen from "../pen.js";
-import { Role } from "../roles.js";
-import { read, write } from "../store.js";
-import { translate } from "../translate.js";
+import { pen, Role, read, translate, write } from "#selfie";
 
 const GEMINI_APP_URL = "https://gemini.google.com/app";
 const GEMINI_STREAM_GENERATE_URL =

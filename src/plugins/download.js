@@ -15,8 +15,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import YtDlpWrap from "yt-dlp-wrap";
-import { download } from "../browser.js";
-import { Role } from "../roles.js";
+import { download, Role } from "#selfie";
 
 const BIN_DIR = resolve("./bin");
 const YTDLP_PATHS = [

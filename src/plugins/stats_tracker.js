@@ -8,7 +8,7 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
-import { EVENTS } from "../const.js";
+import { EVENTS } from "#selfie";
 
 /** @type {import('../plugin.js').Plugin} */
 export default {

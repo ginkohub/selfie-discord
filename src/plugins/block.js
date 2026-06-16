@@ -8,7 +8,7 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
-import { Role } from "../roles.js";
+import { Role } from "#selfie";
 
 export default [
   {

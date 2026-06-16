@@ -8,8 +8,7 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
-import { Role } from "../roles.js";
-import { translate } from "../translate.js";
+import { Role, translate } from "#selfie";
 
 const t = translate({
   en: {

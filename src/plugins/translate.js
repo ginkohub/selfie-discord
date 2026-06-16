@@ -8,10 +8,7 @@
  * This code is part of Ginko project (https://github.com/ginkohub)
  */
 
-import { EVENTS } from "../const.js";
-import { Role } from "../roles.js";
-import { read, write } from "../store.js";
-import { translate, translateText } from "../translate.js";
+import { EVENTS, Role, read, translate, translateText, write } from "#selfie";
 
 const t = translate({
   en: {
@@ -92,37 +89,14 @@ export default [
       const lang = parts[0];
       if (!/^[a-z]{2}$/.test(lang)) return await c.react("❌");
 
-      const mention = c.event.mentions.users.first();
-      let userId;
-      let resolved;
-
-      if (mention) {
-        userId = mention.id;
-        resolved = mention.username;
-      } else {
-        const name = parts.slice(1).join(" ").toLowerCase();
-        if (c.event.guild) {
-          const members = await c.event.guild.members.fetch();
-          const member = members.find(
-            (m) =>
-              m.user.username.toLowerCase() === name ||
-              m.displayName.toLowerCase() === name,
-          );
-          if (!member) return await c.react("❌");
-          userId = member.id;
-          resolved = member.user.username;
-        } else {
-          return await c.react("❌");
-        }
-      }
-
       const data = read();
       data.translate = data.translate || {};
       data.translate.storeChannel = c.event.channel.id;
       data.translate.autoList = data.translate.autoList || [];
 
-      if (!data.translate.autoList.some((e) => e.userId === userId)) {
-        data.translate.autoList.push({ userId, lang, username: resolved });
+      const name = parts.slice(1).join(" ");
+      if (!data.translate.autoList.some((e) => e.username === name)) {
+        data.translate.autoList.push({ lang, username: name });
       }
 
       write(data);
@@ -140,9 +114,7 @@ export default [
       if (!store?.storeChannel || !store?.autoList?.length) return;
 
       const entry = store.autoList.find(
-        (e) =>
-          e.userId === msg.author.id ||
-          e.username?.toLowerCase() === msg.author.username.toLowerCase(),
+        (e) => e.username?.toLowerCase() === msg.author.username.toLowerCase(),
       );
       if (!entry) return;
 

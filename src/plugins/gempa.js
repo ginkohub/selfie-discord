@@ -12,8 +12,7 @@
  * Earthquake data from BMKG (https://bmkg.go.id)
  */
 
-import { Role } from "../roles.js";
-import { translate } from "../translate.js";
+import { Role, translate } from "#selfie";
 
 const t = translate({
   en: {

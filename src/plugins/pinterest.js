@@ -12,8 +12,7 @@
  * Credits to https://github.com/siputzx for the API.
  */
 
-import { Role } from "../roles.js";
-import { translate } from "../translate.js";
+import { Role, translate } from "#selfie";
 
 const t = translate({
   en: {

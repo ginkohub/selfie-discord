@@ -12,9 +12,7 @@
  * Credits to https://github.com/siputzx for the API.
  */
 
-import { Role } from "../roles.js";
-import { read, write } from "../store.js";
-import { translate } from "../translate.js";
+import { Role, read, translate, write } from "#selfie";
 
 const BASE = "https://api.siputzx.my.id/api/ai";
 
@@ -78,10 +76,93 @@ function saveSettings(s) {
 }
 
 const channels = new Map();
+const aiMessages = new Set();
 
 function getHistory(channelId) {
   if (!channels.has(channelId)) channels.set(channelId, []);
   return channels.get(channelId);
+}
+
+async function processQuery(query, channelId) {
+  const settings = loadSettings();
+  const settingsData = read().settings || {};
+  const model = settings.model || "gptoss120b";
+  const system =
+    settingsData.systemPrompt ||
+    "Your name is Ginko, humble, always energetic and enthusiastic, love programming, calm. Speak in casual, everyday language using 'you' (kamu) and 'I' (aku). Keep sentences as short as possible, like a Discord chat. Respond without conversational formatting and keep it under 2000 characters. Don't to much thinking.";
+  const temperature = settings.temperature ?? 0.7;
+
+  const history = getHistory(channelId);
+  const context = [...history, { role: "user", content: query }]
+    .map((h) => `${h.role}: ${h.content}`)
+    .join("\n\n");
+
+  const result = await callApi(model, context, system, temperature);
+  if (!result.status) return null;
+
+  history.push({ role: "user", content: query });
+  history.push({ role: "assistant", content: result.text });
+
+  const maxHistory = 20;
+  if (history.length > maxHistory)
+    history.splice(0, history.length - maxHistory);
+
+  return result.text;
+}
+
+function splitText(text, maxLen = 2000) {
+  if (text.length <= maxLen) return [text];
+
+  const splitLong = (s) => {
+    const res = [];
+    let i = 0;
+    while (i < s.length) {
+      let end = Math.min(i + maxLen, s.length);
+      if (end < s.length) {
+        const brk = s.lastIndexOf("\n", end);
+        if (brk > i) end = brk;
+      }
+      res.push(s.slice(i, end).trim());
+      i = end;
+    }
+    return res;
+  };
+
+  const parts = text.split(/\n\n+/);
+  const chunks = [];
+  let buf = "";
+  for (const p of parts) {
+    const next = buf ? `${buf}\n\n${p}` : p;
+    if (next.length > maxLen) {
+      if (buf) chunks.push(buf);
+      if (p.length > maxLen) {
+        chunks.push(...splitLong(p));
+      } else {
+        buf = p;
+      }
+    } else {
+      buf = next;
+    }
+  }
+  if (buf) chunks.push(buf);
+  return chunks;
+}
+
+async function replyOrEdit(c, text) {
+  const chunks = splitText(text);
+  if (c.cmd === "air") {
+    const msg = await c.event.edit(chunks[0]);
+    if (msg?.id) aiMessages.add(msg.id);
+    for (let i = 1; i < chunks.length; i++) {
+      const m = await msg.reply(chunks[i]);
+      if (m?.id) aiMessages.add(m.id);
+    }
+  } else {
+    for (const chunk of chunks) {
+      const msg = await c.reply(chunk);
+      if (msg?.id) aiMessages.add(msg.id);
+    }
+  }
 }
 
 async function callApi(model, prompt, system, temperature) {
@@ -107,111 +188,111 @@ async function callApi(model, prompt, system, temperature) {
   return { status: true, text };
 }
 
-export default {
-  cmd: ["ai", "air"],
-  cat: "ai",
-  desc: "Chat with AI via free API",
-  roles: [Role.USER],
-  exec: async (c) => {
-    const args = (c.args || "").trim();
-    const [sub, ...rest] = args.split(/ +/);
+export default [
+  {
+    cmd: ["ai", "air"],
+    cat: "ai",
+    desc: "Chat with AI via free API",
+    roles: [Role.USER],
+    exec: async (c) => {
+      const args = (c.args || "").trim();
+      const [sub, ...rest] = args.split(/ +/);
 
-    const settings = loadSettings();
+      const settings = loadSettings();
 
-    if (sub === "model") {
-      const model = rest.join(" ").trim();
-      if (!model) {
-        return await c.reply(
-          t("choose_model", { prefix: c.prefix, models: modelListStr() }, c),
-        );
+      if (sub === "model") {
+        const model = rest.join(" ").trim();
+        if (!model) {
+          return await c.reply(
+            t("choose_model", { prefix: c.prefix, models: modelListStr() }, c),
+          );
+        }
+        if (!MODELS[model]) {
+          return await c.reply(`Unknown model. Available: ${modelListStr()}`);
+        }
+        settings.model = model;
+        saveSettings(settings);
+        channels.delete(c.event.channel?.id || c.event.author?.id);
+        return await c.reply(t("model_set", { model }, c));
       }
-      if (!MODELS[model]) {
-        return await c.reply(`Unknown model. Available: ${modelListStr()}`);
+
+      if (sub === "prompt" || sub === "system") {
+        const prompt = rest.join(" ").trim();
+        const data = read();
+        if (!data.settings) data.settings = {};
+        data.settings.systemPrompt = prompt;
+        write(data);
+        return await c.reply(t("prompt_set", {}, c));
       }
-      settings.model = model;
-      saveSettings(settings);
-      channels.delete(c.event.channel?.id || c.event.author?.id);
-      return await c.reply(t("model_set", { model }, c));
-    }
 
-    if (sub === "prompt" || sub === "system") {
-      const prompt = rest.join(" ").trim();
-      const data = read();
-      if (!data.settings) data.settings = {};
-      data.settings.systemPrompt = prompt;
-      write(data);
-      return await c.reply(t("prompt_set", {}, c));
-    }
-
-    if (sub === "temp" || sub === "temperature") {
-      const val = parseFloat(rest.join(" "));
-      if (Number.isNaN(val) || val < 0 || val > 2) {
-        return await c.reply(t("temp_range", {}, c));
+      if (sub === "temp" || sub === "temperature") {
+        const val = parseFloat(rest.join(" "));
+        if (Number.isNaN(val) || val < 0 || val > 2) {
+          return await c.reply(t("temp_range", {}, c));
+        }
+        settings.temperature = val;
+        saveSettings(settings);
+        return await c.reply(t("temp_set", { temp: val }, c));
       }
-      settings.temperature = val;
-      saveSettings(settings);
-      return await c.reply(t("temp_set", { temp: val }, c));
-    }
 
-    if (sub === "clear") {
-      const ch = c.event.channel?.id || c.event.author?.id;
-      channels.delete(ch);
-      return await c.reply(t("cleared", {}, c));
-    }
+      if (sub === "clear") {
+        const ch = c.event.channel?.id || c.event.author?.id;
+        channels.delete(ch);
+        return await c.reply(t("cleared", {}, c));
+      }
 
-    const settingsData = read().settings || {};
-    const model = settings.model || "gptoss120b";
-    const system = settingsData.systemPrompt || "";
-    const temperature = settings.temperature ?? 0.7;
+      const channelId = c.event.channel?.id || c.event.author?.id;
 
-    const channelId = c.event.channel?.id || c.event.author?.id;
+      let query = args;
 
-    let query = args;
+      const ref = c.event.reference;
+      let replied = null;
+      if (ref?.messageId) {
+        try {
+          replied = await c.event.channel.messages.fetch(ref.messageId);
+        } catch {}
+      }
 
-    const ref = c.event.reference;
-    let replied = null;
-    if (ref?.messageId) {
+      if (replied) {
+        const repliedText = replied.content || "";
+        if (query) {
+          query = `${repliedText}\n\n${query}`;
+        } else {
+          query = repliedText;
+        }
+      }
+
+      if (!query) return await c.reply(t("no_msg", {}, c));
+
       try {
-        replied = await c.event.channel.messages.fetch(ref.messageId);
-      } catch { }
-    }
-
-    if (replied) {
-      const repliedText = replied.content || "";
-      if (query) {
-        query = `${repliedText}\n\n${query}`;
-      } else {
-        query = repliedText;
+        const text = await processQuery(query, channelId);
+        if (!text) return await c.react("❌");
+        await replyOrEdit(c, text);
+      } catch {
+        await c.react("❌");
       }
-    }
-
-    if (!query) return await c.reply(t("no_msg", {}, c));
-
-    const history = getHistory(channelId);
-    const context = [...history, { role: "user", content: query }]
-      .map((h) => `${h.role}: ${h.content}`)
-      .join("\n\n");
-
-    try {
-      const result = await callApi(model, context, system, temperature);
-      if (!result.status) {
-        return await c.react("❌");
-      }
-
-      history.push({ role: "user", content: query });
-      history.push({ role: "assistant", content: result.text });
-
-      const maxHistory = 20;
-      if (history.length > maxHistory)
-        history.splice(0, history.length - maxHistory);
-
-      if (c.cmd === "air") {
-        await c.event.edit(result.text);
-      } else {
-        await c.reply(result.text);
-      }
-    } catch {
-      await c.react("❌");
-    }
+    },
   },
-};
+  {
+    events: ["messageCreate"],
+    roles: [Role.USER],
+    exec: async (c) => {
+      const msg = c.event;
+      if (msg.author.id === c.client.user.id) return;
+
+      const ref = msg.reference;
+      if (!ref?.messageId) return;
+      if (!aiMessages.has(ref.messageId)) return;
+
+      const channelId = msg.channel?.id || msg.author?.id;
+      const query = msg.content || "";
+
+      try {
+        const text = await processQuery(query, channelId);
+        if (!text) return;
+        const sent = await msg.reply(text);
+        if (sent?.id) aiMessages.add(sent.id);
+      } catch {}
+    },
+  },
+];
