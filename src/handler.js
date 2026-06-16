@@ -44,7 +44,11 @@ export class Handler {
   async dispatch(eventType, eventData, client) {
     const plugins = getPluginsByEvent(eventType);
 
+    const paused = read().paused;
+
     for (const plugin of plugins) {
+      if (paused && plugin?.cmd && !plugin.cmd.includes("break")) continue;
+
       try {
         if (
           eventType === EVENTS.MESSAGE_CREATE ||
