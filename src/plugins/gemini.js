@@ -110,12 +110,19 @@ function hasRequiredCookies(cookieMap) {
   return REQUIRED_COOKIES.every((name) => Boolean(cookieMap[name]));
 }
 
+function tagIt(tagName, content, attrs = {}) {
+  return `<${tagName}${Object.entries(attrs)
+    .map(([k, v]) => ` ${k}="${v}"`)
+    .join("")}>${content}</${tagName}>`;
+}
+
 class GeminiClient {
   #agent;
   #cachedAccessToken = null;
   #accessTokenTime = 0;
   #cookieMap = {};
   #timeout = 300000;
+  #timezone = "Asia/Jakarta";
 
   constructor(options = {}) {
     this.#agent = new https.Agent({
@@ -129,6 +136,7 @@ class GeminiClient {
       this.loadCookiesFromFile(options.cookiesFile);
     }
     if (options.timeout) this.#timeout = options.timeout;
+    if (options.timezone) this.#timezone = options.timezone;
   }
 
   loadCookiesFromFile(filePath = "cookies.json") {
@@ -360,10 +368,39 @@ class GeminiClient {
     const at = await this.#getAccessToken();
     const cookieHeader = buildCookieHeader(this.#cookieMap);
 
-    let promptPayload = [prompt];
+    const now = new Date();
+    const dateOptions = {
+      weekday: "long",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZoneName: "short",
+    };
+
+    const systems = [
+      tagIt(
+        "serverTime",
+        now.toLocaleString("id-ID", { timeZone: "UTC", ...dateOptions }),
+      ),
+      tagIt(
+        "userTime",
+        now.toLocaleString("id-ID", {
+          timeZone: this.#timezone || "Asia/Jakarta",
+          ...dateOptions,
+        }),
+      ),
+    ];
+
     if (systemPrompt) {
-      promptPayload = [`<system>${systemPrompt}</system>\n\n${prompt}`];
+      systems.push(tagIt(`instruction`, systemPrompt));
     }
+
+    const promptPayload = [
+      `${tagIt("system", systems.join("\n"))}\n\n${prompt}`,
+    ];
     const inner = [promptPayload, null, chatMetadata];
     const fReq = JSON.stringify([null, JSON.stringify(inner)]);
 
@@ -638,8 +675,11 @@ export default [
       if (replied) {
         const name = replied.author?.displayName || "Unknown";
         const username = replied.author?.username || "unknown";
-        const quoted = `<quoted name="${name}" username="${username}">${replied.content || ""}</quoted>`;
-        prompt = prompt ? `${prompt}\n${quoted}` : quoted;
+        const quoted = tagIt("quoted", replied.content || "", {
+          name,
+          username,
+        });
+        prompt = prompt ? `${quoted}\n${prompt}` : quoted;
       }
 
       if (!prompt) return await c.reply(t("usage", { prefix: c.prefix }, c));
@@ -679,12 +719,13 @@ export default [
       try {
         const replied = await msg.channel.messages.fetch(ref.messageId);
         if (replied) {
-          const name =
-            replied.author?.displayName ||
-            replied.author?.username ||
-            "Unknown";
-          const quoted = `<quoted name="${name}">${replied.content || ""}</quoted>`;
-          query = query ? `${query}\n${quoted}` : quoted;
+          const name = replied.author?.displayName || "Unknown";
+          const username = replied.author?.username || "unknown";
+          const quoted = tagIt("quoted", replied.content || "", {
+            name,
+            username,
+          });
+          query = query ? `${quoted}\n${query}` : quoted;
         }
       } catch {}
       if (!query) return;
