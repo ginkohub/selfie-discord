@@ -12,11 +12,82 @@
  * Credits to TikWM (https://tikwm.com), Instagram, and CapCut for media APIs.
  */
 
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import http from "node:http";
+import https from "node:https";
 import { stringify } from "node:querystring";
+import { SocksProxyAgent } from "socks-proxy-agent";
+import { ProxyAgent } from "undici";
 
 class Browser {
   constructor(options = {}) {
     this.timeout = options.timeout || 30000;
+  }
+
+  _isSocks(url) {
+    return /^socks(5|5h)?:\/\//.test(url);
+  }
+
+  _getDispatcher(proxyUrl) {
+    if (!proxyUrl) return {};
+    if (this._isSocks(proxyUrl)) {
+      const agent = new SocksProxyAgent(proxyUrl);
+      return { _socksAgent: agent };
+    }
+    const agent = new ProxyAgent(proxyUrl);
+    return { dispatcher: agent, _proxyAgent: agent };
+  }
+
+  async _fetchWithSocks(url, options, socksAgent) {
+    const urlObj = new URL(url);
+    const isHttps = urlObj.protocol === "https:";
+    const mod = isHttps ? https : http;
+
+    return new Promise((resolve, reject) => {
+      const req = mod.request(
+        url,
+        {
+          agent: socksAgent,
+          method: options.method || "GET",
+          headers: options.headers || {},
+          signal: options.signal,
+        },
+        (res) => {
+          const chunks = [];
+          res.on("data", (c) => chunks.push(c));
+          res.on("end", () => {
+            const body = Buffer.concat(chunks);
+            const contentType = res.headers["content-type"] || "";
+            let data;
+            if (contentType.includes("application/json")) {
+              try {
+                data = JSON.parse(body.toString());
+              } catch {
+                data = body.toString();
+              }
+            } else {
+              data = body.toString();
+            }
+
+            const headersObj = {};
+            for (const [key, val] of Object.entries(res.headers)) {
+              headersObj[key] = val;
+            }
+
+            resolve({
+              data,
+              headers: headersObj,
+              url: url,
+              status: res.statusCode,
+            });
+          });
+        },
+      );
+
+      req.on("error", reject);
+      if (options.body) req.write(options.body);
+      req.end();
+    });
   }
 
   static DEFAULT_HEADERS = {
@@ -47,16 +118,28 @@ class Browser {
   };
 
   async get(url, options = {}) {
-    const headers = { ...Browser.DEFAULT_HEADERS, ...options.headers };
+    const { proxy, headers: userHeaders, ...fetchOpts } = options;
+    const headers = { ...Browser.DEFAULT_HEADERS, ...userHeaders };
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeout);
+    const { _proxyAgent, _socksAgent, ...dispatcher } =
+      this._getDispatcher(proxy);
 
     try {
+      if (_socksAgent) {
+        return await this._fetchWithSocks(
+          url,
+          { method: "GET", headers, signal: controller.signal, ...fetchOpts },
+          _socksAgent,
+        );
+      }
+
       const response = await fetch(url, {
         method: "GET",
         headers,
         signal: controller.signal,
-        ...options,
+        ...fetchOpts,
+        ...dispatcher,
       });
 
       const contentType = response.headers.get("content-type") || "";
@@ -77,21 +160,41 @@ class Browser {
       return { data, headers: headersObj, url: response.url };
     } finally {
       clearTimeout(timeout);
+      if (_proxyAgent) _proxyAgent.close();
     }
   }
 
   async post(url, data, options = {}) {
-    const headers = { ...Browser.DEFAULT_HEADERS, ...options.headers };
+    const { proxy, headers: userHeaders, ...fetchOpts } = options;
+    const headers = { ...Browser.DEFAULT_HEADERS, ...userHeaders };
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeout);
+    const { _proxyAgent, _socksAgent, ...dispatcher } =
+      this._getDispatcher(proxy);
 
     try {
+      if (_socksAgent) {
+        const body = typeof data === "string" ? data : JSON.stringify(data);
+        return await this._fetchWithSocks(
+          url,
+          {
+            method: "POST",
+            headers,
+            body,
+            signal: controller.signal,
+            ...fetchOpts,
+          },
+          _socksAgent,
+        );
+      }
+
       const response = await fetch(url, {
         method: "POST",
         headers,
         body: typeof data === "string" ? data : JSON.stringify(data),
         signal: controller.signal,
-        ...options,
+        ...fetchOpts,
+        ...dispatcher,
       });
 
       const contentType = response.headers.get("content-type") || "";
@@ -110,6 +213,7 @@ class Browser {
       return { data: responseData, headers: headersObj };
     } finally {
       clearTimeout(timeout);
+      if (_proxyAgent) _proxyAgent.close();
     }
   }
 
@@ -573,7 +677,7 @@ async function downloadCapCut(url) {
               };
             }
           }
-        } catch {}
+        } catch { }
       }
     }
 
@@ -709,8 +813,8 @@ export async function download(url) {
     const urlLower = (mediaUrl || "").toLowerCase();
     mediaType =
       urlLower.includes(".mp4") ||
-      urlLower.includes("/video/") ||
-      urlLower.includes(".m3u8")
+        urlLower.includes("/video/") ||
+        urlLower.includes(".m3u8")
         ? "video"
         : "image";
   } else if (/capcut\.com/.test(url)) {
@@ -725,6 +829,142 @@ export async function download(url) {
   return normalizeResponse(platform, result.data, mediaUrl, mediaType);
 }
 
+/**
+ * Proxy sources
+ */
+const PROXY_SOURCES = [
+  "https://raw.githubusercontent.com/stormsia/proxy-list/main/http.txt",
+  "https://raw.githubusercontent.com/stormsia/proxy-list/main/socks5.txt",
+  "https://raw.githubusercontent.com/stormsia/proxy-list/main/socks4.txt",
+];
+
+export async function scrapeProxies({
+  sources = PROXY_SOURCES,
+  timeout = 5000,
+} = {}) {
+  const proxies = [];
+  const seen = new Set();
+
+  for (const url of sources) {
+    try {
+      const { data } = await browser.get(url, {
+        timeout,
+        headers: { Accept: "text/plain,application/json" },
+      });
+
+      if (typeof data === "string") {
+        const lines = data
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean);
+        for (const line of lines) {
+          let ip,
+            port,
+            protocol = "http";
+
+          // format: protocol://ip:port
+          if (/^[a-z][a-z0-9]+:\/\//.test(line)) {
+            const parsed = new URL(line);
+            protocol = parsed.protocol.replace(":", "");
+            ip = parsed.hostname;
+            port = parsed.port;
+          } else {
+            // format: ip:port
+            const parts = line.split(":");
+            ip = parts[0];
+            port = parts[1];
+          }
+
+          if (ip && port && /^\d+$/.test(port) && !seen.has(ip)) {
+            seen.add(ip);
+            proxies.push({ ip, port, protocol });
+          }
+        }
+      } else if (Array.isArray(data)) {
+        for (const entry of data) {
+          const ip = entry.ip || entry.host;
+          const port = entry.port;
+          if (ip && port && !seen.has(ip)) {
+            seen.add(ip);
+            proxies.push({
+              ip,
+              port: String(port),
+              protocol: (entry.protocol || "http").toLowerCase(),
+            });
+          }
+        }
+      }
+    } catch {
+      // skip failed sources
+    }
+  }
+
+  return proxies;
+}
+
+export async function testProxy(
+  proxy,
+  { url = "http://httpbin.org/ip", timeout = 5000 } = {},
+) {
+  try {
+    await browser.get(url, {
+      proxy: `http://${proxy.ip}:${proxy.port}`,
+      timeout,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function refreshProxies({
+  file = "proxies.json",
+  sources = PROXY_SOURCES,
+  timeout = 5000,
+  ttl = 86_400_000,
+} = {}) {
+  const cutoff = Date.now() - ttl;
+  let fresh = [];
+  if (existsSync(file)) {
+    const existing = JSON.parse(readFileSync(file, "utf-8"));
+    fresh = existing.filter(
+      (p) => p.tested_at && new Date(p.tested_at).getTime() > cutoff,
+    );
+    const removed = existing.length - fresh.length;
+    if (removed) console.log(`Removed ${removed} expired (>24h)`);
+  }
+
+  const all = await scrapeProxies({ sources, timeout });
+  const toTest = all.filter(
+    (s) => !fresh.some((f) => f.ip === s.ip && f.port === s.port),
+  );
+
+  if (toTest.length === 0) {
+    writeFileSync(file, JSON.stringify(fresh, null, 2));
+    console.log(`${fresh.length} proxies still fresh`);
+    return fresh;
+  }
+
+  console.log(`Testing ${toTest.length}...`);
+  const start = Date.now();
+  const results = await Promise.allSettled(
+    toTest.map((p) => testProxy(p, { timeout })),
+  );
+  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  const now = new Date().toISOString();
+
+  const working = toTest
+    .filter((_, i) => results[i]?.status === "fulfilled" && results[i].value)
+    .map((p) => ({ ...p, tested_at: now }));
+
+  const total = [...fresh, ...working];
+  writeFileSync(file, JSON.stringify(total, null, 2));
+  console.log(
+    `Done in ${elapsed}s — ${total.length} total (${working.length} new, ${fresh.length} fresh)`,
+  );
+  return total;
+}
+
 export default {
   Browser,
   download,
@@ -736,4 +976,7 @@ export default {
   threads: downloadThreads,
   pinterest: downloadPinterest,
   capcut: downloadCapCut,
+  scrapeProxies,
+  testProxy,
+  refreshProxies,
 };
