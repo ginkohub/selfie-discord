@@ -5,6 +5,8 @@
 A plugin is a file in `src/plugins/` that exports a default object (or array of objects):
 
 ```js
+import { Role } from "#selfie"
+
 export default {
   cmd: ["hello"],           // command triggers
   cat: "user",              // category for menu
@@ -13,7 +15,7 @@ export default {
   exec: async (c) => {      // execution function
     // c = PluginContext
   },
-};
+}
 ```
 
 For multiple commands in one file, export an array:
@@ -22,7 +24,7 @@ For multiple commands in one file, export an array:
 export default [
   { cmd: ["hi"],  exec: async (c) => { ... } },
   { cmd: ["bye"], exec: async (c) => { ... } },
-];
+]
 ```
 
 ## PluginContext (`c`)
@@ -36,9 +38,9 @@ export default [
 | `c.cmd` | `string` | The matched command name |
 | `c.args` | `string` | Arguments after the command, joined by spaces |
 | `c.senderJid` | `string` | The user's Discord ID |
-| `c.handler()` | `Handler` | The handler instance (access managers) |
-| `c.user()` | `User` | Current user data object |
-| `c.chatData()` | `Object` | Current chat/guild data |
+| `c.handler()` | `Handler` | Returns the handler instance (access managers) |
+| `c.user()` | `User` | Returns current user data object |
+| `c.chatData()` | `Object` | Returns current chat/guild data |
 | `c.reply(text)` | `Promise` | Reply to the message |
 | `c.react(emoji)` | `Promise` | React to the message |
 
@@ -65,7 +67,7 @@ c.user().hasRole(role)     // check exact role
 ## Role Levels
 
 ```js
-import { Role } from "../roles.js";
+import { Role } from "#selfie"
 
 Role.GUEST       // 0 — new users
 Role.USER        // 1 — registered users
@@ -76,22 +78,22 @@ Role.SUPERADMIN  // 3 — bot owner
 ## i18n
 
 ```js
-import { translate } from "../translate.js";
+import { translate } from "#selfie"
 
 const t = translate({
   en: { hello: "Hello {name}" },
   id: { hello: "Halo {name}" },
-});
+})
 
-await c.reply(t("hello", { name: "World" }, c));
+await c.reply(t("hello", { name: "World" }, c))
 ```
 
 ## Translation (Google/LibreTranslate)
 
 ```js
-import { translateText } from "../translate.js";
+import { translateText } from "#selfie"
 
-const result = await translateText("Hello", "id", { engine: "google" });
+const result = await translateText("Hello", "id", { engine: "google" })
 ```
 
 ## Events (listeners without commands)
@@ -102,18 +104,16 @@ export default {
   exec: async (c) => {
     // runs on every message
   },
-};
+}
 ```
 
 Available events: `ready`, `messageCreate`, `messageUpdate`, `messageDelete`, `guildMemberAdd`.
 
 ## Style Guide
 
-- **No semicolons** unless required
+- **Use `#selfie` imports** — never relative paths like `"../roles.js"`
 - **Double quotes** for strings
-- **2-space** indentation
 - **No comments** in plugin code
-- **No error handling** for impossible scenarios
 - **Use `c.react("❌")`** for silent failures instead of error replies
 - **One concern per plugin file** — don't mix unrelated commands
 - **Match existing patterns** — look at other plugins before writing new ones
@@ -125,7 +125,7 @@ Plugins are automatically reloaded when the file changes. No restart needed.
 ## Creating a Plugin (quick start)
 
 ```js
-import { Role } from "../roles.js";
+import { Role } from "#selfie"
 
 export default {
   cmd: ["ping", "p"],
@@ -133,7 +133,7 @@ export default {
   desc: "Ping command",
   roles: [Role.USER],
   exec: async (c) => {
-    await c.reply("Pong!");
+    await c.reply("Pong!")
   },
-};
+}
 ```
