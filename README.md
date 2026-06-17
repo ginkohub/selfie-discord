@@ -34,7 +34,7 @@ src/
 ├── roles.js         # Role hierarchy (badges & levels)
 ├── settings.js      # Configuration & Environment
 ├── store.js         # JSON data persistence
-├── tools.js         # Utility functions (hot reload, etc.)
+├── tools.js         # Utility functions (sleep, splitText, watchDir)
 └── translate.js     # Multi-language helper
 ```
 
@@ -65,7 +65,7 @@ src/
 Just create a new file in `src/plugins/hello.js`. The system will load it automatically.
 
 ```javascript
-import { Role } from "../roles.js";
+import { Role } from "#selfie"
 
 export default {
   cmd: ["hello", "hi"],
@@ -73,9 +73,9 @@ export default {
   desc: "Greet the user",
   roles: [Role.USER],
   exec: async (c) => {
-    await c.reply(`Hello ${c.user().displayName}!`);
+    await c.reply(`Hello ${c.user().displayName || c.user().username}!`)
   },
-};
+}
 ```
 
 ## License
