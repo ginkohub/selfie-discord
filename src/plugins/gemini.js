@@ -364,35 +364,36 @@ class GeminiClient {
     chatMetadata = null,
     tools = null,
     systemPrompt = null,
+    info = null,
   ) {
     const at = await this.#getAccessToken();
     const cookieHeader = buildCookieHeader(this.#cookieMap);
 
     const now = new Date();
-    const dateOptions = {
-      weekday: "long",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      timeZoneName: "short",
-    };
 
     const systems = [
-      tagIt(
-        "serverTime",
-        now.toLocaleString("id-ID", { timeZone: "UTC", ...dateOptions }),
-      ),
-      tagIt(
-        "userTime",
-        now.toLocaleString("id-ID", {
+      tagIt("time", "", {
+        utc: now.toISOString(),
+        local: now.toLocaleString("sv-SE", {
           timeZone: this.#timezone || "Asia/Jakarta",
-          ...dateOptions,
+          hour12: false,
         }),
-      ),
+        tz: this.#timezone || "Asia/Jakarta",
+      }),
     ];
+
+    if (info) {
+      if (info.user)
+        systems.push(
+          tagIt("user", "", {
+            name: info.user.name || "Unknown",
+            username: info.user.username || "unknown",
+          }),
+        );
+      if (info.channel) systems.push(tagIt("channel", info.channel));
+      if (info.server) systems.push(tagIt("server", info.server));
+      if (info.bot) systems.push(tagIt("bot", info.bot));
+    }
 
     if (systemPrompt) {
       systems.push(tagIt(`instruction`, systemPrompt));
@@ -451,6 +452,7 @@ class GeminiClient {
     const tools = options.tools;
     const toolExecutor = options.toolExecutor;
     let systemPrompt = options.systemPrompt || null;
+    const info = options.info || null;
     const startTime = Date.now();
 
     if (tools && tools.length > 0) {
@@ -462,7 +464,14 @@ class GeminiClient {
       systemPrompt = (systemPrompt || "") + tagInstructions;
     }
 
-    let result = await this.#request(prompt, model, null, tools, systemPrompt);
+    let result = await this.#request(
+      prompt,
+      model,
+      null,
+      tools,
+      systemPrompt,
+      info,
+    );
 
     let functionCalls = null;
     if (tools && result.functionCalls && result.functionCalls.length > 0) {
@@ -499,6 +508,7 @@ class GeminiClient {
         result.metadata,
         tools,
         systemPrompt,
+        info,
       );
 
       return {
@@ -721,7 +731,16 @@ export default [
 
       try {
         const sysPrompt = getSystemPrompt();
-        const r = await client.ask(prompt, { systemPrompt: sysPrompt });
+        const info = {
+          user: {
+            name: c.event.author?.displayName,
+            username: c.event.author?.username,
+          },
+          channel: c.event.channel?.name || null,
+          server: c.event.guild?.name || null,
+          bot: c.client.user?.username || null,
+        };
+        const r = await client.ask(prompt, { systemPrompt: sysPrompt, info });
         if (!r.response?.trim()) return await c.react("❌");
         const chunks = splitText(r.response);
         const sent = await c.reply(chunks[0]);
@@ -766,7 +785,16 @@ export default [
 
       try {
         const sysPrompt = getSystemPrompt();
-        const r = await client.ask(query, { systemPrompt: sysPrompt });
+        const info = {
+          user: {
+            name: msg.author?.displayName,
+            username: msg.author?.username,
+          },
+          channel: msg.channel?.name || null,
+          server: msg.guild?.name || null,
+          bot: c.client.user?.username || null,
+        };
+        const r = await client.ask(query, { systemPrompt: sysPrompt, info });
         if (!r.response?.trim()) return;
         const chunks = splitText(r.response);
         const sent = await msg.reply(chunks[0]);
