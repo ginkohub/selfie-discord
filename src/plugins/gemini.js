@@ -297,7 +297,7 @@ class GeminiClient {
   #parseTextForCalls(text) {
     const calls = [];
     const regex = /<tool_call>([^<]+)<\/tool_call>/g;
-    for (; ;) {
+    for (;;) {
       const match = regex.exec(text);
       if (!match) break;
       try {
@@ -305,7 +305,7 @@ class GeminiClient {
         if (data.name && data.params) {
           calls.push({ name: data.name, params: data.params });
         }
-      } catch { }
+      } catch {}
     }
     return calls.length > 0 ? calls : null;
   }
@@ -339,7 +339,7 @@ class GeminiClient {
         ) {
           texts.push(candidate);
         }
-      } catch { }
+      } catch {}
     }
     let text =
       texts.length > 0
@@ -362,7 +362,7 @@ class GeminiClient {
 
     let promptPayload = [prompt];
     if (systemPrompt) {
-      promptPayload = [`${systemPrompt}\n\n${prompt}`];
+      promptPayload = [`<system>${systemPrompt}</system>\n\n${prompt}`];
     }
     const inner = [promptPayload, null, chatMetadata];
     const fReq = JSON.stringify([null, JSON.stringify(inner)]);
@@ -493,6 +493,10 @@ const t = translate({
       "Usage: `{prefix}gmset <name>=<value> ...` or `{prefix}gmset clear`",
     set_done: "Cookies saved.",
     set_cleared: "Cookies cleared.",
+    sys_usage:
+      "Usage: `{prefix}gmset prompt <text>` or `{prefix}gmset prompt clear`",
+    sys_set: "Prompt updated.",
+    sys_cleared: "Prompt cleared.",
   },
   id: {
     usage: "Gunakan: `{prefix}gemini <pesan>` atau balas pesan",
@@ -502,6 +506,10 @@ const t = translate({
       "Gunakan: `{prefix}gmset <nama>=<nilai> ...` atau `{prefix}gmset clear`",
     set_done: "Cookie tersimpan.",
     set_cleared: "Cookie dihapus.",
+    sys_usage:
+      "Gunakan: `{prefix}gmset prompt <teks>` atau `{prefix}gmset prompt clear`",
+    sys_set: "Prompt diperbarui.",
+    sys_cleared: "Prompt dihapus.",
   },
 });
 
@@ -518,6 +526,11 @@ function saveCookies(map) {
   write(data);
 }
 
+function getSystemPrompt() {
+  const data = read();
+  return data.gemini?.systemPrompt || null;
+}
+
 function getClient() {
   const cookies = loadCookies();
   if (Object.keys(cookies).length === 0) return null;
@@ -532,7 +545,29 @@ const geminiMessages = new Set();
 
 function handleGmset(c) {
   const raw = (c.args || "").trim();
-  if (!raw) {
+  const [sub, ...rest] = raw.split(/ +/);
+
+  if (sub === "prompt" || sub === "system") {
+    const prompt = rest.join(" ").trim();
+    if (!prompt) {
+      const current = getSystemPrompt();
+      if (!current) return c.reply(t("sys_usage", { prefix: c.prefix }, c));
+      return c.reply(`Current prompt:\n${current}`);
+    }
+    if (prompt === "clear") {
+      const data = read();
+      if (data.gemini) delete data.gemini.systemPrompt;
+      write(data);
+      return c.reply(t("sys_cleared", {}, c));
+    }
+    const data = read();
+    data.gemini = data.gemini || {};
+    data.gemini.systemPrompt = prompt;
+    write(data);
+    return c.reply(t("sys_set", {}, c));
+  }
+
+  if (!raw || !sub) {
     const stored = loadCookies();
     const keys = Object.keys(stored);
     if (keys.length === 0) {
@@ -596,7 +631,7 @@ export default [
       if (ref?.messageId) {
         try {
           replied = await c.event.channel.messages.fetch(ref.messageId);
-        } catch { }
+        } catch {}
       }
 
       let prompt = query;
@@ -614,7 +649,8 @@ export default [
         return await c.reply(t("no_cookies", { prefix: c.prefix }, c));
 
       try {
-        const r = await client.ask(prompt);
+        const sysPrompt = getSystemPrompt();
+        const r = await client.ask(prompt, { systemPrompt: sysPrompt });
         if (!r.response?.trim()) return await c.react("❌");
         const chunks = splitText(r.response);
         const sent = await c.reply(chunks[0]);
@@ -624,7 +660,7 @@ export default [
         if (sent?.id) geminiMessages.add(sent.id);
       } catch (e) {
         console.error("[gemini]", e);
-        await msg.react("❌").catch(() => { });
+        await c.react("❌");
       }
     },
   },
@@ -650,14 +686,15 @@ export default [
           const quoted = `${name}: ${replied.content || ""}`;
           query = query ? `${query}\n${quoted}` : quoted;
         }
-      } catch { }
+      } catch {}
       if (!query) return;
 
       const client = getClient();
       if (!client) return;
 
       try {
-        const r = await client.ask(query);
+        const sysPrompt = getSystemPrompt();
+        const r = await client.ask(query, { systemPrompt: sysPrompt });
         if (!r.response?.trim()) return;
         const chunks = splitText(r.response);
         const sent = await msg.reply(chunks[0]);
@@ -667,7 +704,7 @@ export default [
         if (sent?.id) geminiMessages.add(sent.id);
       } catch (e) {
         console.error("[gemini]", e);
-        await msg.react("❌").catch(() => { });
+        await msg.react("❌").catch(() => {});
       }
     },
   },
