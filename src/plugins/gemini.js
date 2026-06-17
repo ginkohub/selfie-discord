@@ -568,6 +568,11 @@ function getSystemPrompt() {
   return data.gemini?.systemPrompt || null;
 }
 
+function getTimezone() {
+  const data = read();
+  return data.gemini?.timezone || null;
+}
+
 function getClient() {
   const cookies = loadCookies();
   if (Object.keys(cookies).length === 0) return null;
@@ -575,7 +580,7 @@ function getClient() {
     name,
     value,
   }));
-  return new GeminiClient({ cookies: arr });
+  return new GeminiClient({ cookies: arr, timezone: getTimezone() });
 }
 
 const geminiMessages = new Set();
@@ -583,6 +588,32 @@ const geminiMessages = new Set();
 function handleGmset(c) {
   const raw = (c.args || "").trim();
   const [sub, ...rest] = raw.split(/ +/);
+
+  if (sub === "timezone" || sub === "tz") {
+    const tz = rest.join(" ").trim();
+    if (!tz) {
+      const current = getTimezone() || "Asia/Jakarta (default)";
+      return c.reply(`Current timezone: ${current}`);
+    }
+    if (tz === "clear") {
+      const data = read();
+      if (data.gemini) delete data.gemini.timezone;
+      write(data);
+      return c.reply("Timezone reset to default (Asia/Jakarta).");
+    }
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: tz });
+    } catch {
+      return c.reply(
+        "Invalid timezone. Use IANA zone (e.g. Asia/Jakarta, UTC, America/New_York).",
+      );
+    }
+    const data = read();
+    data.gemini = data.gemini || {};
+    data.gemini.timezone = tz;
+    write(data);
+    return c.reply(`Timezone set to ${tz}.`);
+  }
 
   if (sub === "prompt" || sub === "system") {
     const prompt = rest.join(" ").trim();
