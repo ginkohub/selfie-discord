@@ -622,8 +622,9 @@ export default [
           await c.event.channel.send(chunks[i]);
         }
         if (sent?.id) geminiMessages.add(sent.id);
-      } catch {
-        await c.react("❌");
+      } catch (e) {
+        console.error("[gemini]", e);
+        await msg.react("❌").catch(() => { });
       }
     },
   },
@@ -664,7 +665,10 @@ export default [
           await c.event.channel.send(chunks[i]);
         }
         if (sent?.id) geminiMessages.add(sent.id);
-      } catch { }
+      } catch (e) {
+        console.error("[gemini]", e);
+        await msg.react("❌").catch(() => { });
+      }
     },
   },
   {
