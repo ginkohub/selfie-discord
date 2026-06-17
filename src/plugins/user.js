@@ -136,7 +136,10 @@ export default [
       }
 
       mentions.forEach((u) => {
-        const user = c.handler().userManager.updateUser(u.id, {});
+        const updateData = {};
+        updateData.username = u.username;
+        updateData.displayName = u.globalName || u.username;
+        const user = c.handler().userManager.updateUser(u.id, updateData);
         if (user && !user.roles.includes(role)) {
           user.roles.push(role);
           c.handler().userManager.updateUser(u.id, { roles: user.roles });
@@ -169,7 +172,10 @@ export default [
       }
 
       mentions.forEach((u) => {
-        const user = c.handler().userManager.updateUser(u.id, {});
+        const updateData = {};
+        updateData.username = u.username;
+        updateData.displayName = u.globalName || u.username;
+        const user = c.handler().userManager.updateUser(u.id, updateData);
         if (user?.roles.includes(role)) {
           user.roles = user.roles.filter((r) => r !== role);
           if (user.roles.length === 0) user.roles.push(Role.GUEST);
@@ -201,7 +207,14 @@ export default [
         return await c.reply("Usage: .user+ <id> or @mention");
 
       for (const id of targets) {
-        c.handler().userManager.updateUser(id, {});
+        const discordUser = await c.client.users.fetch(id).catch(() => null);
+        const updateData = {};
+        if (discordUser) {
+          updateData.username = discordUser.username;
+          updateData.displayName =
+            discordUser.globalName || discordUser.username;
+        }
+        c.handler().userManager.updateUser(id, updateData);
       }
 
       await c.reply(`Added/verified ${targets.length} user(s).`);
@@ -231,6 +244,36 @@ export default [
       c.handler().userManager.save();
 
       await c.reply(`Removed ${targets.length} user(s) from database.`);
+    },
+  },
+  {
+    cmd: ["user?"],
+    cat: "admin",
+    tags: ["user"],
+    desc: "Refresh user data from Discord",
+    roles: [Role.ADMIN],
+    exec: async (c) => {
+      const mentions = c.event.mentions.users;
+      const targets =
+        mentions.size > 0
+          ? mentions.map((u) => u.id)
+          : c.args.trim()
+            ? [c.args.trim()]
+            : [];
+
+      if (targets.length === 0)
+        return await c.reply("Usage: .user? <id> or @mention");
+
+      for (const id of targets) {
+        const discordUser = await c.client.users.fetch(id).catch(() => null);
+        if (!discordUser) continue;
+        c.handler().userManager.updateUser(id, {
+          username: discordUser.username,
+          displayName: discordUser.globalName || discordUser.username,
+        });
+      }
+
+      await c.reply(`Refreshed ${targets.length} user(s).`);
     },
   },
 ];
