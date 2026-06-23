@@ -216,9 +216,9 @@ export default [
       }
 
       if (replied) {
-        const name =
-          replied.author?.displayName || replied.author?.username || "Unknown";
-        const quoted = `${name}: ${replied.content || ""}`;
+        const name = replied.author?.displayName || "Unknown";
+        const username = replied.author?.username || "unknown";
+        const quoted = `<quoted name="${name}" username="${username}">${replied.content || ""}</quoted>`;
         query = query ? `${query}\n${quoted}` : quoted;
       }
 
@@ -253,7 +253,7 @@ export default [
             replied.author?.displayName ||
             replied.author?.username ||
             "Unknown";
-          const quoted = `${name}: ${replied.content || ""}`;
+          const quoted = `<quoted name="${name}">${replied.content || ""}</quoted>`;
           query = query ? `${query}\n${quoted}` : quoted;
         }
       } catch {}
