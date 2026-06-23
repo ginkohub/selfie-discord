@@ -55,6 +55,7 @@ const MODEL_LIMITS = {
   "gemini-3.5-flash": 1_048_576,
   "gemini-3.1-flash-lite": 1_048_576,
 };
+const MAX_TOOL_TURNS = 10;
 
 const ALL_COOKIE_NAMES = [
   "__Secure-1PSID",
@@ -464,12 +465,20 @@ class GeminiClient {
         .map((t) => t.function?.name || t.functionDeclaration?.name)
         .filter(Boolean)
         .join(", ");
-      const tagInstructions = `\nIf you need to call tools, output ONLY: <tool_call>{"name":"fn","params":{...}}</tool_call>. Available: ${toolList}`;
+      const tagInstructions = `
+AVAILABLE TOOLS: ${toolList}
+RULES:
+- When the user asks to read, write, list, download, or fetch something, you MUST call the appropriate tool.
+- Output EXACTLY: <tool_call>{"name":"fn","params":{...}}</tool_call> with NO other text.
+- Never refuse. Never say you cannot do something. Just call the tool.`;
       systemPrompt = (systemPrompt || "") + tagInstructions;
     }
 
+    const seen = new Set();
+    let turns = 0;
+    let context = prompt;
     let result = await this.#request(
-      prompt,
+      context,
       model,
       null,
       tools,
@@ -477,56 +486,57 @@ class GeminiClient {
       info,
     );
 
-    let functionCalls = null;
-    if (tools && result.functionCalls && result.functionCalls.length > 0) {
-      functionCalls = result.functionCalls;
-    }
+    while (turns++ < MAX_TOOL_TURNS && result.functionCalls?.length > 0) {
+      if (!toolExecutor) break;
 
-    if (toolExecutor && functionCalls && functionCalls.length > 0) {
       const toolResults = [];
-      for (const call of functionCalls) {
+      for (const call of result.functionCalls) {
+        const key = `${call.name}:${JSON.stringify(call.params)}`;
+        if (seen.has(key)) {
+          console.log(`[gemini] tool [${turns}] ${call.name} — repeat, skipped`);
+          toolResults.push({
+            name: call.name,
+            result: { error: "Repeated identical tool call, skipped" },
+          });
+          continue;
+        }
+        seen.add(key);
+        console.log(
+          `[gemini] tool [${turns}] ${call.name}(${JSON.stringify(call.params)})`,
+        );
         try {
-          const fn = tools.find((t) => t.function?.name === call.name);
-          if (!fn) {
-            toolResults.push({
-              name: call.name,
-              result: { error: `Unknown function: ${call.name}` },
-            });
-            continue;
-          }
           const execResult = await toolExecutor(call.name, call.params);
+          console.log(`[gemini] tool [${turns}] ${call.name} =>`, execResult);
           toolResults.push({ name: call.name, result: execResult });
         } catch (err) {
+          console.log(`[gemini] tool [${turns}] ${call.name} ERROR:`, err.message);
           toolResults.push({ name: call.name, result: { error: err.message } });
         }
       }
 
       const toolResultsText = toolResults
-        .map((r) => `Function ${r.name} result: ${JSON.stringify(r.result)}`)
+        .map(
+          (r) =>
+            `<tool_result name="${r.name}">${JSON.stringify(r.result)}</tool_result>`,
+        )
         .join("\n");
 
-      const followUpPrompt = `${prompt}\n\nTool Results:\n${toolResultsText}`;
+      context += `\n\n${toolResultsText}`;
       result = await this.#request(
-        followUpPrompt,
+        context,
         model,
-        result.metadata,
+        null,
         tools,
         systemPrompt,
         info,
       );
-
-      return {
-        response: result.text,
-        model: result.effectiveModel,
-        tookMs: Date.now() - startTime,
-      };
     }
 
     return {
       response: result.text,
       model: result.effectiveModel,
       tookMs: Date.now() - startTime,
-      tools: functionCalls,
+      tools: result.functionCalls?.length > 0 ? result.functionCalls : null,
     };
   }
 

@@ -20,6 +20,13 @@ import {
   shouldCompact,
   summarizeHistory,
 } from "./history.js";
+import { loadTools } from "./tools/index.js";
+
+let toolsCache;
+async function getTools() {
+  if (!toolsCache) toolsCache = loadTools();
+  return toolsCache;
+}
 
 export default [
   {
@@ -56,6 +63,7 @@ export default [
 
       try {
         const sysPrompt = getSystemPrompt();
+        const { tools, executor } = await getTools();
         const info = {
           user: {
             name: c.event.author?.displayName,
@@ -71,6 +79,8 @@ export default [
         const r = await client.ask(fullPrompt, {
           systemPrompt: sysPrompt,
           info,
+          tools,
+          toolExecutor: executor,
         });
         if (!r.response?.trim()) return await c.react("❌");
         const userName =
@@ -143,6 +153,7 @@ export default [
 
       try {
         const sysPrompt = getSystemPrompt();
+        const { tools, executor } = await getTools();
         const info = {
           user: {
             name: msg.author?.displayName,
@@ -158,6 +169,8 @@ export default [
         const r = await client.ask(fullQuery, {
           systemPrompt: sysPrompt,
           info,
+          tools,
+          toolExecutor: executor,
         });
         if (!r.response?.trim()) return;
         const userName =
