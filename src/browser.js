@@ -677,7 +677,7 @@ async function downloadCapCut(url) {
               };
             }
           }
-        } catch { }
+        } catch {}
       }
     }
 
@@ -813,8 +813,8 @@ export async function download(url) {
     const urlLower = (mediaUrl || "").toLowerCase();
     mediaType =
       urlLower.includes(".mp4") ||
-        urlLower.includes("/video/") ||
-        urlLower.includes(".m3u8")
+      urlLower.includes("/video/") ||
+      urlLower.includes(".m3u8")
         ? "video"
         : "image";
   } else if (/capcut\.com/.test(url)) {
