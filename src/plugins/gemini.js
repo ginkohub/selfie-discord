@@ -305,7 +305,7 @@ class GeminiClient {
   #parseTextForCalls(text) {
     const calls = [];
     const regex = /<tool_call>([^<]+)<\/tool_call>/g;
-    for (;;) {
+    for (; ;) {
       const match = regex.exec(text);
       if (!match) break;
       try {
@@ -313,7 +313,7 @@ class GeminiClient {
         if (data.name && data.params) {
           calls.push({ name: data.name, params: data.params });
         }
-      } catch {}
+      } catch { }
     }
     return calls.length > 0 ? calls : null;
   }
@@ -347,7 +347,7 @@ class GeminiClient {
         ) {
           texts.push(candidate);
         }
-      } catch {}
+      } catch { }
     }
     let text =
       texts.length > 0
@@ -709,7 +709,7 @@ export default [
       if (ref?.messageId) {
         try {
           replied = await c.event.channel.messages.fetch(ref.messageId);
-        } catch {}
+        } catch { }
       }
 
       let prompt = query;
@@ -759,10 +759,15 @@ export default [
     roles: [Role.USER],
     exec: async (c) => {
       const msg = c.event;
-      if (msg.author.id === c.client.user.id) return;
-
       const ref = msg.reference;
       if (!ref?.messageId) return;
+
+      if (
+        msg.author.id === c.client.user.id &&
+        !geminiMessages.has(ref.messageId)
+      )
+        return;
+
       if (!geminiMessages.has(ref.messageId)) return;
 
       let query = msg.content || "";
@@ -777,7 +782,7 @@ export default [
           });
           query = query ? `${quoted}\n${query}` : quoted;
         }
-      } catch {}
+      } catch { }
       if (!query) return;
 
       const client = getClient();
@@ -804,7 +809,7 @@ export default [
         if (sent?.id) geminiMessages.add(sent.id);
       } catch (e) {
         console.error("[gemini]", e);
-        await msg.react("❌").catch(() => {});
+        await msg.react("❌").catch(() => { });
       }
     },
   },
